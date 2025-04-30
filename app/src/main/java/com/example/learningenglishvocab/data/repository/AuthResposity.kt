@@ -9,6 +9,8 @@ import kotlinx.coroutines.tasks.await
 import java.util.UUID
 
 class AuthRepository(private val auth: FirebaseAuth) {
+    private val userRepository = UserRepository()
+
     suspend fun loginUser(email: String, password: String): FirebaseUser? {
         return try {
             val result = auth.signInWithEmailAndPassword(email, password).await()

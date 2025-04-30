@@ -21,26 +21,30 @@ class AuthViewModel : ViewModel() {
     private val _isLoggedIn = MutableStateFlow(authRepository.getCurrentUser() != null)
     val isLoggedIn = _isLoggedIn.asStateFlow()
 
-    fun checkUserStatus() {
-        _isLoggedIn.value = authRepository.getCurrentUser() != null
+    fun getCurrentUserId(): String? {
+        return authRepository.getCurrentUser()?.uid
     }
 
-    fun login(email: String, password: String, onSuccess: () -> Unit) {
+    fun login(email: String, password: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
-            val user = authRepository.loginUser(email, password)
-
-            if (user != null) {
-                if (user.isEmailVerified) {
-                    onSuccess()
+            try {
+                val user = authRepository.loginUser(email, password)
+                if (user != null) {
+                    if (user.isEmailVerified) {
+                        _isLoggedIn.value = true
+                        onSuccess()
+                    } else {
+                        onError("Email chưa được xác thực!")
+                    }
                 } else {
-                    _errorMessage.value = "Email chưa được xác thực!"
+                    onError("Đăng nhập thất bại! Vui lòng kiểm tra lại email hoặc mật khẩu.")
                 }
-            } else {
-                _errorMessage.value = "Đăng nhập thất bại! Vui lòng kiểm tra lại email hoặc mật khẩu."
+            } catch (e: Exception) {
+                onError(e.message ?: "Lỗi đăng nhập không xác định.")
+            } finally {
+                _isLoading.value = false
             }
-
-            _isLoading.value = false
         }
     }
 

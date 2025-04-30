@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.learningenglishvocab.R
+import com.example.learningenglishvocab.ui.bottomNav.BottomNavItem
 import com.example.learningenglishvocab.viewmodel.AuthViewModel
 
 @Composable
@@ -276,11 +277,18 @@ fun UserLoginView(
         Button(
             onClick = {
                 viewModel.login(
-                    emailState.text,
-                    passwordState.text
-                ) {
-                    navController.navigate("home")
-                }
+                    email = emailState.text,
+                    password = passwordState.text,
+                    onSuccess = {
+                        navController.navigate(BottomNavItem.Home.route) {
+                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onError = { error ->
+                        Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+                    }
+                )
             },
             modifier = Modifier
                 .align(alignment = Alignment.TopCenter)
@@ -375,4 +383,13 @@ fun UserLoginView(
                 .requiredHeight(height = 286.dp)
         )
     }
+}
+
+object AppTypes {
+    val type_Body_14_Regular = TextStyle(
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Normal,
+        lineHeight = 20.sp,
+        color = Color.Black
+    )
 }
