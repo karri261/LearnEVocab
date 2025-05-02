@@ -1,8 +1,10 @@
 package com.example.learningenglishvocab.ui.screen.library
 
 import android.annotation.SuppressLint
+import android.graphics.BitmapFactory
 import android.os.Build
 import android.util.Log
+import android.util.Base64
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -61,6 +63,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import com.example.learningenglishvocab.R
 import com.example.learningenglishvocab.data.model.VocabSet
 import com.example.learningenglishvocab.data.repository.StudyLogRepository
@@ -69,6 +73,7 @@ import com.example.learningenglishvocab.ui.screen.auth.AppTypes
 import com.example.learningenglishvocab.viewmodel.AuthViewModel
 import com.example.learningenglishvocab.viewmodel.LibraryViewModel
 import com.example.learningenglishvocab.viewmodel.VocabSetViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -95,10 +100,7 @@ fun LibraryMainScreen(
         Box(
             modifier = Modifier
                 .align(alignment = Alignment.TopEnd)
-                .offset(
-                    x = 0.dp,
-                    y = 23.dp
-                )
+                .offset(x = 0.dp, y = 23.dp)
                 .requiredWidth(width = 375.dp)
                 .requiredHeight(height = 40.dp)
         ) {
@@ -130,14 +132,12 @@ fun LibraryMainScreen(
                 ),
                 modifier = Modifier
                     .align(alignment = Alignment.TopStart)
-                    .offset(
-                        x = 130.dp,
-                        y = 10.dp
-                    )
+                    .offset(x = 130.dp, y = 10.dp)
             )
         }
 
         val userRepository = UserRepository()
+        val studyLogRepository = StudyLogRepository()
 
         var expanded by remember { mutableStateOf(false) }
         val options = listOf("Tất cả", "Đã tạo", "Đã tải về")
@@ -148,7 +148,7 @@ fun LibraryMainScreen(
         val bringIntoViewRequester = remember { BringIntoViewRequester() }
         val coroutineScope = rememberCoroutineScope()
 
-        val vocabSets = libraryViewModel.vocabSets
+        val vocabSetWithLogs = libraryViewModel.vocabSetWithLogs
         val currentUserId = authViewModel.getCurrentUserId()
         var currentUsername by remember { mutableStateOf<String?>(null) }
 
@@ -158,21 +158,22 @@ fun LibraryMainScreen(
             currentUsername = user?.username
         }
 
-        val filteredVocabSets = remember(vocabSets, selectedOptionText, searchText) {
+        val filteredVocabSetWithLogs = remember(vocabSetWithLogs, selectedOptionText, searchText) {
             val baseList = when (selectedOptionText) {
-                "Tất cả" -> vocabSets
-                "Đã tạo" -> vocabSets.filter { it.created_by == currentUsername  }
-                "Đã tải về" -> vocabSets.filter { it.created_by != currentUsername }
-                else -> vocabSets
+                "Tất cả" -> vocabSetWithLogs
+                "Đã tạo" -> vocabSetWithLogs.filter { it.first.created_by == currentUserId }
+                "Đã tải về" -> vocabSetWithLogs.filter { it.first.created_by != currentUserId }
+                else -> vocabSetWithLogs
             }
             if (searchText.isBlank()) {
                 baseList
             } else {
                 baseList.filter {
-                    it.vocabSetName.contains(searchText, ignoreCase = true)
+                    it.first.vocabSetName.contains(searchText, ignoreCase = true)
                 }
             }
         }
+
         Box(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -282,8 +283,8 @@ fun LibraryMainScreen(
             }
         )
 
-        val groupedSets = remember(filteredVocabSets) {
-            libraryViewModel.groupVocabSetsByDate(filteredVocabSets)
+        val groupedSets = remember(filteredVocabSetWithLogs) {
+            libraryViewModel.groupVocabSetsByDate(filteredVocabSetWithLogs)
         }
 
         LazyColumn(
@@ -307,10 +308,19 @@ fun LibraryMainScreen(
                 }
 
                 items(sets) { vocabSet ->
-                    VocabSetItem(vocabSet = vocabSet)
-                    {
-                        libraryViewModel.updateVocabSetUpdatedAt(vocabSet.vocabSetId) {
+                    VocabSetItem(vocabSet = vocabSet) {
+                        // Cập nhật lịch sử học
+                        coroutineScope.launch {
+                            val logs = studyLogRepository.getStudyLogs(currentUserId ?: "")
+                            val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                            val hasLogForToday = logs.any { it.date == today && it.vocabSetId == vocabSet.vocabSetId }
+
+                            if (!hasLogForToday) {
+                                studyLogRepository.logStudySession(currentUserId ?: "", vocabSet.vocabSetId)
+                            }
+
                             navController.navigate("vocabSetDetail/${vocabSet.vocabSetId}")
+                            libraryViewModel.loadAllVocabSets() // Tải lại danh sách
                         }
                     }
                 }
@@ -327,6 +337,14 @@ fun VocabSetItem(vocabSet: VocabSet, onClick: () -> Unit) {
     val userRepository = UserRepository()
     val coroutineScope = rememberCoroutineScope()
     val userId = authViewModel.getCurrentUserId() ?: return
+    var creatorUsername by remember { mutableStateOf("") }
+    var avatarBase64 by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(vocabSet.created_by) {
+        val user = userRepository.getUser(vocabSet.created_by)
+        creatorUsername = user?.username ?: "Unknown"
+        avatarBase64 = user?.avatar
+    }
 
     Box(
         modifier = Modifier
@@ -340,13 +358,13 @@ fun VocabSetItem(vocabSet: VocabSet, onClick: () -> Unit) {
                     val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
 
                     // Kiểm tra xem đã có log cho ngày hôm nay chưa
-                    val hasLogForToday = logs.any { it.date == today }
+                    val hasLogForToday = logs.any { it.date == today && it.vocabSetId == vocabSet.vocabSetId }
 
                     if (!hasLogForToday) {
                         val currentStreak = studyLogRepository.calculateStreak(userId)
                         userRepository.updateUserStreak(userId, currentStreak)
-
                         studyLogRepository.logStudySession(userId, vocabSet.vocabSetId)
+                        delay(100)
                     }
 
                     onClick()
@@ -406,7 +424,15 @@ fun VocabSetItem(vocabSet: VocabSet, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
-                painter = painterResource(id = R.drawable.eapplogo),
+                painter = avatarBase64?.let {
+                    try {
+                        val bytes = Base64.decode(it, Base64.DEFAULT)
+                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        bitmap?.let { BitmapPainter(it.asImageBitmap()) }
+                    } catch (e: Exception) {
+                        null
+                    }
+                } ?: painterResource(id = R.drawable.eapplogo),
                 contentDescription = "Avatar",
                 modifier = Modifier
                     .size(20.dp) //
@@ -414,7 +440,7 @@ fun VocabSetItem(vocabSet: VocabSet, onClick: () -> Unit) {
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = vocabSet.created_by,
+                text = creatorUsername,
                 color = Color(0xff343333),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,

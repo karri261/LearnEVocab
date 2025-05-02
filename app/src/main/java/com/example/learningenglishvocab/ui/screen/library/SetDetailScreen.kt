@@ -1,6 +1,7 @@
 package com.example.learningenglishvocab.ui.screen.library
 
 import android.annotation.SuppressLint
+import android.graphics.BitmapFactory
 import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -68,6 +69,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -88,9 +90,12 @@ import com.example.learningenglishvocab.data.repository.UserRepository
 import com.example.learningenglishvocab.viewmodel.AuthViewModel
 import com.example.learningenglishvocab.viewmodel.VocabSetViewModel
 import kotlinx.coroutines.delay
+import android.util.Base64
+import androidx.compose.ui.graphics.asImageBitmap
+import kotlin.io.encoding.ExperimentalEncodingApi
 
-@SuppressLint("RememberReturnType")
 @androidx.annotation.OptIn(UnstableApi::class)
+@SuppressLint("RememberReturnType")
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun SetDetailScreen(
@@ -114,6 +119,8 @@ fun SetDetailScreen(
 
     val studyLogRepository = StudyLogRepository()
     val userId = authViewModel.getCurrentUserId() ?: return
+    var creatorUsername by remember { mutableStateOf("") }
+    var avatarBase64 by remember { mutableStateOf<String?>(null) }
     var showStreakOverlay by remember { mutableStateOf(false) }
     var previousStreak by remember { mutableStateOf(0) }
     var currentStreak by remember { mutableStateOf(0) }
@@ -137,16 +144,20 @@ fun SetDetailScreen(
     }
 
     LaunchedEffect(Unit) {
-//        val userId = authViewModel.getCurrentUserId() ?: return@LaunchedEffect
         val user = userRepository.getUser(userId)
         currentUsername = user?.username
     }
 
-    LaunchedEffect(vocabSetId) {
+    LaunchedEffect(vocabSetViewModel.vocabSetId) {
         if (!vocabSetId.isNullOrEmpty()) {
             vocabSetViewModel.loadVocabSetById(vocabSetId)
+            val vocabSet = vocabSetViewModel
+            val creator = userRepository.getUser(vocabSet.created_by)
+            creatorUsername = creator?.username ?: "Unknown"
+            avatarBase64 = creator?.avatar
         }
     }
+
 
     // LaunchedEffect để chạy đếm ngược
     LaunchedEffect(showReadyOverlay, startCountdown, countdown) {
@@ -166,7 +177,7 @@ fun SetDetailScreen(
     LaunchedEffect(action) {
         if (action != null) {
             try {
-                if (currentUsername != null && vocabSetViewModel.created_by == currentUsername) {
+                if (currentUsername != null && vocabSetViewModel.created_by == userId) {
                     when (action) {
                         "edit" -> {
                             showSheet = false
@@ -296,22 +307,30 @@ fun SetDetailScreen(
                         Row(
                             modifier = Modifier
                                 .align(Alignment.TopStart)
-                                .offset(x = 0.dp, y = 31.dp),
+                                .offset(x = 0.dp, y = 33.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Image(
-                                    painter = painterResource(id = R.drawable.eapplogo),
-                                    contentDescription = "image",
+                                    painter = avatarBase64?.let {
+                                        try {
+                                            val bytes = Base64.decode(it, Base64.DEFAULT)
+                                            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                            bitmap?.let { BitmapPainter(it.asImageBitmap()) }
+                                        } catch (e: Exception) {
+                                            null
+                                        }
+                                    } ?: painterResource(id = R.drawable.eapplogo),
+                                    contentDescription = "avatar",
                                     modifier = Modifier
                                         .requiredSize(26.dp)
                                         .clip(CircleShape)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = createdBy,
+                                    text = creatorUsername,
                                     color = Color(0xff343333),
                                     style = TextStyle(fontSize = 14.sp),
                                     fontWeight = FontWeight.SemiBold

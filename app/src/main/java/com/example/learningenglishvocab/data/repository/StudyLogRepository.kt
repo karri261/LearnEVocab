@@ -3,6 +3,7 @@ package com.example.learningenglishvocab.data.repository
 import android.annotation.SuppressLint
 import com.example.learningenglishvocab.data.model.StudyLog
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter

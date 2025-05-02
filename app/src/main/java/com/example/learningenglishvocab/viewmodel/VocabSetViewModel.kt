@@ -142,7 +142,7 @@ class VocabSetViewModel(
                         vocabSetId = vocabSetId ?: "",
                         vocabSetName = vocabSetName,
                         is_public = isPublic,
-                        created_by = user.username,
+                        created_by = userId,
                         created_at = System.currentTimeMillis(),
                         updated_at = System.currentTimeMillis(),
                         terms = terms,
@@ -175,7 +175,7 @@ class VocabSetViewModel(
                         vocabSetId = vocabSetId ?: "",
                         vocabSetName = vocabSetName,
                         is_public = isPublic,
-                        created_by = user.username,
+                        created_by = userId,
                         terms = terms,
                         updated_at = System.currentTimeMillis(),
                         isPremiumContent = isPremiumContent

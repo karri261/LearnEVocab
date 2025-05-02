@@ -22,6 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,21 +35,43 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.learningenglishvocab.R
+import com.example.learningenglishvocab.data.model.PracticeRecord
 import com.example.learningenglishvocab.data.model.Term
 import com.example.learningenglishvocab.data.model.TermStatus
+import com.example.learningenglishvocab.data.repository.UserRepository
+import com.example.learningenglishvocab.viewmodel.AuthViewModel
 import com.example.learningenglishvocab.viewmodel.VocabSetViewModel
 
 @Composable
 fun VocabLearnResultScreen(
     modifier: Modifier = Modifier,
     vocabSetViewModel: VocabSetViewModel,
+    authViewModel: AuthViewModel,
     navController: NavController,
     vocabSetId: String? = null
 ) {
+    val userRepository = UserRepository()
+    val userId = authViewModel.getCurrentUserId() ?: return
+
     val answeredTerms = vocabSetViewModel.answeredTerms
     val unknownTerms = vocabSetViewModel.unknownTerms
     val knownCount = vocabSetViewModel.terms.count { it.status == TermStatus.KNOWN }
     val unknownCount = vocabSetViewModel.terms.count { it.status != TermStatus.KNOWN }
+
+    LaunchedEffect(unknownCount) {
+        if (unknownCount == 0 && vocabSetId != null) {
+            val currentRecord = userRepository.getPracticeRecord(userId, vocabSetId)
+            val newRecord = if (currentRecord == null) {
+                PracticeRecord(vocabSetId = vocabSetId, practiceCount = 1)
+            } else {
+                currentRecord.copy(
+                    practiceCount = currentRecord.practiceCount + 1,
+                    lastCompletedAt = System.currentTimeMillis()
+                )
+            }
+            userRepository.addPracticeRecord(userId, newRecord)
+        }
+    }
 
     Box(
         modifier = modifier

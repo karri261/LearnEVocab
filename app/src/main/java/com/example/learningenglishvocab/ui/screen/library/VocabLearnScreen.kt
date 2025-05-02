@@ -3,6 +3,7 @@ package com.example.learningenglishvocab.ui.screen.library
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.AlertDialog
 import androidx.compose.material.LocalTextStyle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -26,6 +28,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,8 +42,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -48,8 +53,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import com.example.learningenglishvocab.R
+import com.example.learningenglishvocab.data.model.PracticeRecord
+import com.example.learningenglishvocab.data.repository.UserRepository
+import com.example.learningenglishvocab.viewmodel.AuthViewModel
 import com.example.learningenglishvocab.viewmodel.VocabSetViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -60,10 +69,18 @@ import kotlinx.coroutines.withContext
 fun VocabLearnScreen(
     modifier: Modifier = Modifier,
     vocabSetViewModel: VocabSetViewModel,
+    authViewModel: AuthViewModel,
     navController: NavController,
     vocabSetId: String? = null,
     isRetryMode: Boolean = false
 ) {
+    val userRepository = UserRepository()
+    val userId = authViewModel.getCurrentUserId() ?: return
+    var isPremium by remember { mutableStateOf(false) }
+    var practiceRecord by remember { mutableStateOf<PracticeRecord?>(null) }
+    var showLimitDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
     val originalTerms = if (isRetryMode) vocabSetViewModel.unknownTerms else vocabSetViewModel.terms
     val shuffledTerms = remember(isRetryMode) { originalTerms.shuffled().toMutableStateList() }
     var currentIndex by remember { mutableStateOf(0) }
@@ -78,7 +95,21 @@ fun VocabLearnScreen(
     var isFirstAttempt by remember(currentIndex) { mutableStateOf(true) }
     var lastWrongAnswer by remember { mutableStateOf("") }
 
-    LaunchedEffect(vocabSetId, isRetryMode) {
+    // Load user và practice record
+    LaunchedEffect(userId, vocabSetId) {
+        val user = userRepository.getUser(userId)
+        isPremium = user?.premium ?: false
+        if (vocabSetId != null) {
+            practiceRecord = userRepository.getPracticeRecord(userId, vocabSetId)
+        }
+    }
+
+    // Kiểm tra giới hạn trước khi học
+    LaunchedEffect(practiceRecord, isPremium) {
+        if (!isPremium && practiceRecord != null && practiceRecord!!.practiceCount >= 1) {
+            showLimitDialog = true
+            return@LaunchedEffect
+        }
         if (!isRetryMode && vocabSetId != null) {
             vocabSetViewModel.loadVocabSetById(vocabSetId)
         }
@@ -89,6 +120,18 @@ fun VocabLearnScreen(
         shuffledTerms.addAll(originalTerms.shuffled())
         focusRequester.requestFocus()
     }
+
+//    LaunchedEffect(vocabSetId, isRetryMode) {
+//        if (!isRetryMode && vocabSetId != null) {
+//            vocabSetViewModel.loadVocabSetById(vocabSetId)
+//        }
+//        if (isRetryMode) {
+//            vocabSetViewModel.startNewRound()
+//        }
+//        shuffledTerms.clear()
+//        shuffledTerms.addAll(originalTerms.shuffled())
+//        focusRequester.requestFocus()
+//    }
 
     LaunchedEffect(isAnswered, isCorrect) {
         if (isAnswered && isCorrect) {
@@ -106,6 +149,105 @@ fun VocabLearnScreen(
                 }
             }
         }
+    }
+
+    if (showLimitDialog) {
+        AlertDialog(
+            onDismissRequest = { showLimitDialog = false },
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFFFFFFFF))
+                .padding(bottom = 16.dp),
+            title = {
+                Text(
+                    text = "Nâng cấp tài khoản",
+                    style = TextStyle(
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF343333)
+                    ),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Text(
+                    text = "Tài khoản của bạn chỉ được sử dụng tính năng này 1 lần. Nâng cấp lên Premium để luyện tập không giới hạn!",
+                    style = TextStyle(
+                        fontSize = 16.sp,
+                        color = Color(0xFF343333),
+                        lineHeight = 1.5.em
+                    ),
+                    textAlign = TextAlign.Center
+                )
+            },
+            buttons = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp, bottom = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Nút Nâng cấp
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(64.dp))
+                            .background(
+                                brush = Brush.linearGradient(
+                                    colorStops = arrayOf(
+                                        0f to Color(0xFFF74C54),
+                                        0.75f to Color(0xFFFA8246),
+                                        1f to Color(0xFFFEAC2F)
+                                    )
+                                )
+                            )
+                            .height(48.dp)
+                            .width(120.dp)
+                            .clickable {
+                                showLimitDialog = false
+                                navController.navigate("profile")
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Nâng cấp",
+                            style = TextStyle(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    // Nút OK
+                    TextButton(
+                        onClick = {
+                            showLimitDialog = false
+                            navController.navigate("vocabSetDetail/$vocabSetId")
+                        },
+                        modifier = Modifier
+                            .height(48.dp)
+                            .width(120.dp)
+                    ) {
+                        Text(
+                            text = "OK",
+                            style = TextStyle(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF9E9595)
+                            )
+                        )
+                    }
+                }
+            },
+            properties = DialogProperties(
+                dismissOnClickOutside = true,
+                dismissOnBackPress = true
+            )
+        )
     }
 
     Box(

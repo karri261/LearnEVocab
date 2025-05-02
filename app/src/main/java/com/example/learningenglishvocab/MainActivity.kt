@@ -243,6 +243,7 @@ fun EApp(
                 VocabLearnScreen(
                     modifier = Modifier,
                     vocabSetViewModel = vocabSetViewModel,
+                    authViewModel = authViewModel,
                     navController = navController,
                     vocabSetId = id,
                     isRetryMode = isRetry
@@ -257,6 +258,7 @@ fun EApp(
                 VocabLearnResultScreen(
                     modifier = Modifier,
                     vocabSetViewModel = vocabSetViewModel,
+                    authViewModel = authViewModel,
                     navController = navController,
                     vocabSetId = id
                 )
