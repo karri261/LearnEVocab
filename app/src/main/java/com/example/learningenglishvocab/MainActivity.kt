@@ -32,7 +32,7 @@ import com.example.learningenglishvocab.ui.screen.auth.UserLoginView
 import com.example.learningenglishvocab.ui.screen.auth.UserRegisterView
 import com.example.learningenglishvocab.ui.screen.auth.VerifyEmailView
 import com.example.learningenglishvocab.ui.screen.discover.DiscoverMainScreen
-import com.example.learningenglishvocab.ui.screen.home.HomeView
+import com.example.learningenglishvocab.ui.screen.home.HomeMainScreen
 import com.example.learningenglishvocab.ui.screen.library.CreateVocabScreen
 import com.example.learningenglishvocab.ui.screen.library.LibraryMainScreen
 import com.example.learningenglishvocab.ui.screen.library.MatchCardScreen
@@ -177,7 +177,11 @@ fun EApp(
                 enterTransition = { null },
                 exitTransition = { null }
             ) {
-                HomeView(modifier = Modifier, navController, authViewModel)
+                HomeMainScreen(
+                    modifier = Modifier,
+                    authViewModel = AuthViewModel(),
+                    navController = navController
+                )
 
             }
 
