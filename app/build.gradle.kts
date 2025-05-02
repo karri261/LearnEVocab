@@ -67,4 +67,8 @@ dependencies {
     implementation("androidx.compose.material:material:1.6.0")
     implementation("androidx.navigation:navigation-compose:2.5.3")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
+    implementation("com.stripe:stripe-android:21.9.0")
+    implementation("com.stripe:financial-connections:21.9.0")
+    implementation("com.github.kittinunf.fuel:fuel:2.3.1")
+    implementation("com.github.kittinunf.fuel:fuel-json:2.3.1")
 }

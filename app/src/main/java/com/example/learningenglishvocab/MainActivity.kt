@@ -1,5 +1,6 @@
 package com.example.learningenglishvocab
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -11,6 +12,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.ViewModel
@@ -91,6 +95,7 @@ class VocabSetViewModelFactory(private val authViewModel: AuthViewModel) :
     }
 }
 
+@SuppressLint("NewApi")
 @Composable
 fun EApp(
     authViewModel: AuthViewModel,
@@ -99,14 +104,13 @@ fun EApp(
 ) {
     Log.d("EApp", "EApp recomposed")
     val navController = rememberNavController()
+    var isCheckingAuth by remember { mutableStateOf(true) }
     val isLoggedIn by authViewModel.isLoggedIn.collectAsStateWithLifecycle()
     val currentBackStack by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStack?.destination?.route
     Log.d("EApp", "isLoggedIn: $isLoggedIn, currentRoute: $currentRoute")
 
     LaunchedEffect(isLoggedIn) {
-        Log.d("Navigation", "isLoggedIn changed: $isLoggedIn, currentRoute: ${navController.currentDestination?.route}")
-        Log.d("Navigation", "Back stack before: ${navController.backQueue.joinToString { it.destination.route ?: "null" }}")
         if (isLoggedIn) {
             Log.d("Navigation", "Navigating to Home")
             navController.navigate(BottomNavItem.Home.route) {
@@ -151,7 +155,11 @@ fun EApp(
 //            startDestination = "libraryMain",
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable("login") {
+            composable(
+                route = "login",
+                enterTransition = { null },
+                exitTransition = { null }
+            ) {
                 UserLoginView(modifier = Modifier, navController, authViewModel)
             }
 
@@ -163,8 +171,13 @@ fun EApp(
                 VerifyEmailView(modifier = Modifier, navController, authViewModel)
             }
 
-            composable("home") {
+            composable(
+                route = "home",
+                enterTransition = { null },
+                exitTransition = { null }
+            ) {
                 HomeView(modifier = Modifier, navController, authViewModel)
+
             }
 
             composable("createVocabSet/{id}", arguments = listOf(navArgument("id") {

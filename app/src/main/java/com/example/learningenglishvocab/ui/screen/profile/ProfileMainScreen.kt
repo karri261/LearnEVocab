@@ -8,9 +8,6 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -28,25 +25,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredHeight
-import androidx.compose.foundation.layout.requiredSize
-import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.Divider
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -69,7 +56,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -80,7 +66,6 @@ import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -89,11 +74,21 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import com.example.learningenglishvocab.R
+import com.example.learningenglishvocab.data.model.Transaction
 import com.example.learningenglishvocab.data.model.User
 import com.example.learningenglishvocab.data.repository.StudyLogRepository
 import com.example.learningenglishvocab.data.repository.UserRepository
 import com.example.learningenglishvocab.viewmodel.AuthViewModel
+import com.github.kittinunf.fuel.httpPost
+import com.github.kittinunf.fuel.json.responseJson
+import com.github.kittinunf.result.Result
+import com.stripe.android.PaymentConfiguration
+import com.stripe.android.paymentsheet.PaymentSheet
+import com.stripe.android.paymentsheet.PaymentSheetResult
+import com.stripe.android.paymentsheet.rememberPaymentSheet
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -109,6 +104,8 @@ fun ProfileMainScreen(
     val userRepository = UserRepository()
     val coroutineScope = rememberCoroutineScope()
 
+    val context = LocalContext.current
+
     // State để quản lý dữ liệu người dùng và trạng thái tải
     var userState by remember { mutableStateOf<User?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -119,13 +116,107 @@ fun ProfileMainScreen(
 
     var showUpgradeBottomSheet by remember { mutableStateOf(false) }
 
+    var customerConfig by remember { mutableStateOf<PaymentSheet.CustomerConfiguration?>(null) }
+    var paymentIntentClientSecret by remember { mutableStateOf<String?>(null) }
+    var paymentError by remember { mutableStateOf<String?>(null) }
+    var isPaymentLoading by remember { mutableStateOf(false) }
+
+    fun onPaymentSheetResult(paymentSheetResult: PaymentSheetResult) {
+        when (paymentSheetResult) {
+            is PaymentSheetResult.Completed -> {
+                coroutineScope.launch {
+                    val userId = authViewModel.getCurrentUserId() ?: return@launch
+                    userState?.let { currentUser ->
+                        // Cập nhật isPremium
+                        val updatedUser = currentUser.copy(premium = true)
+                        val success = userRepository.updateUser(updatedUser)
+                        if (success) {
+                            userState = updatedUser
+                            showUpgradeBottomSheet = false
+                        }
+                        // Lưu thông tin đơn hàng
+                        val transaction = Transaction(
+                            userId = userId,
+                            paymentIntentId = paymentIntentClientSecret?.substringAfter("pi_")
+                                ?: "",
+                            amount = 59900000, // 599.000₫
+                            currency = "vnd",
+                            timestamp = System.currentTimeMillis(),
+                            status = "completed"
+                        )
+                        userRepository.saveTransaction(transaction) // Hàm mới trong UserRepository
+                    }
+                }
+            }
+
+            is PaymentSheetResult.Canceled -> {
+                // Người dùng hủy thanh toán
+                paymentError = "Thanh toán đã bị hủy"
+            }
+
+            is PaymentSheetResult.Failed -> {
+                // Thanh toán thất bại
+                paymentError = "Lỗi thanh toán: ${paymentSheetResult.error.message}"
+            }
+        }
+    }
+
+    val paymentSheet = rememberPaymentSheet(::onPaymentSheetResult)
+
     // Load dữ liệu người dùng khi Composable được tạo
     LaunchedEffect(Unit) {
         val userId = authViewModel.getCurrentUserId() ?: return@LaunchedEffect
         isLoading = true
-        userState = userRepository.getUser(userId)
+        userState = withContext(Dispatchers.IO) {
+            userRepository.getUser(userId)
+        }
         editedUsername = userState?.username ?: "E-App User"
         isLoading = false
+    }
+
+    LaunchedEffect(userState?.premium) {
+        if (userState?.premium == true) {
+            showUpgradeBottomSheet = false
+        }
+    }
+
+    // Gửi yêu cầu tới backend
+    LaunchedEffect(showUpgradeBottomSheet) {
+        if (showUpgradeBottomSheet && paymentIntentClientSecret == null) {
+            isPaymentLoading = true
+            val backendUrl = "https://stripe-backend-eia6.onrender.com/payment-sheet"
+            Log.d("PaymentDebug", "Sending request to $backendUrl with body: {}")
+            backendUrl.httpPost()
+                .header("Content-Type" to "application/json")
+                .body("{}")
+                .timeout(30000) // Tăng timeout lên 30 giây để xử lý server chậm
+                .responseJson { request, response, result ->
+                    isPaymentLoading = false
+                    Log.d("PaymentDebug", "Response: ${response.responseMessage}, Body: ${response.data.decodeToString()}")
+                    when (result) {
+                        is Result.Success -> {
+                            try {
+                                val responseJson = result.get().obj()
+                                paymentIntentClientSecret = responseJson.getString("paymentIntent")
+                                customerConfig = PaymentSheet.CustomerConfiguration(
+                                    id = responseJson.getString("customer"),
+                                    ephemeralKeySecret = responseJson.getString("ephemeralKey")
+                                )
+                                val publishableKey = responseJson.getString("publishableKey")
+                                PaymentConfiguration.init(context, publishableKey)
+                                Log.d("PaymentDebug", "Payment data loaded successfully")
+                            } catch (e: Exception) {
+                                paymentError = "Lỗi xử lý dữ liệu thanh toán: ${e.message}"
+                                Log.e("PaymentDebug", "Error parsing response: ${e.message}", e)
+                            }
+                        }
+                        is Result.Failure -> {
+                            paymentError = "Lỗi kết nối với máy chủ: ${result.getException().message}"
+                            Log.e("PaymentDebug", "Request failed: ${result.getException().message}, Response: ${response.data.decodeToString()}", result.getException())
+                        }
+                    }
+                }
+        }
     }
 
     // Chuyển đổi avatar thành Bitmap để hiển thị
@@ -139,7 +230,6 @@ fun ProfileMainScreen(
     }
 
     // Trình chọn ảnh
-    val context = LocalContext.current
     val pickImageLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
             uri?.let {
@@ -243,7 +333,8 @@ fun ProfileMainScreen(
 
     val nextYearDate by remember {
         mutableStateOf(
-            LocalDate.now().plusYears(1).format(DateTimeFormatter.ofPattern("d 'tháng' M, yyyy"))
+            LocalDate.now().plusYears(1)
+                .format(DateTimeFormatter.ofPattern("d 'tháng' M, yyyy"))
         )
     }
 
@@ -304,7 +395,10 @@ fun ProfileMainScreen(
                             Text(
                                 text = "-30%",
                                 color = Color.White,
-                                style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                style = TextStyle(
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             )
                         }
                         // Nội dung giá tiền
@@ -312,21 +406,30 @@ fun ProfileMainScreen(
                             Text(
                                 text = "Hàng năm",
                                 color = Color.Black,
-                                style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                                style = TextStyle(
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "599.000₫ ≈ $23",
+                                    text = "599.000₫ ≈ $21.84",
                                     color = Color.Black,
-                                    style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                                    style = TextStyle(
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 )
                                 Text(
                                     text = "/ năm",
                                     color = Color.Black,
-                                    style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium),
+                                    style = TextStyle(
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Medium
+                                    ),
                                     modifier = Modifier.padding(start = 8.dp)
                                 )
                             }
@@ -334,7 +437,10 @@ fun ProfileMainScreen(
                             Text(
                                 text = "Huỷ gia hạn tối đa 24 giờ trước khi thời gian sử dụng kết thúc.",
                                 color = Color.Black,
-                                style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                                style = TextStyle(
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                ),
                                 lineHeight = 16.sp
                             )
                         }
@@ -387,7 +493,9 @@ fun ProfileMainScreen(
 
                 // Dòng phân cách
                 Row(
-                    modifier = Modifier.fillMaxWidth().offset(x = 4.dp, y = 2.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset(x = 4.dp, y = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Divider(
@@ -435,7 +543,21 @@ fun ProfileMainScreen(
 
                 // Nút nâng cấp
                 Button(
-                    onClick = { showUpgradeBottomSheet = false },
+                    onClick = {
+                        if (customerConfig != null && paymentIntentClientSecret != null) {
+                            paymentSheet.presentWithPaymentIntent(
+                                paymentIntentClientSecret!!,
+                                PaymentSheet.Configuration(
+                                    merchantDisplayName = "E-App",
+                                    customer = customerConfig,
+                                    allowsDelayedPaymentMethods = false
+                                )
+                            )
+                        } else {
+                            paymentError = "Chưa sẵn sàng để thanh toán. Vui lòng thử lại."
+                        }
+                    },
+                    enabled = !isPaymentLoading,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
@@ -464,9 +586,19 @@ fun ProfileMainScreen(
                         Text(
                             text = "Nâng cấp tài khoản ngay",
                             color = Color.White,
-                            style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium)
                         )
                     }
+                }
+
+                if (paymentError != null) {
+                    Text(
+                        text = paymentError!!,
+                        color = Color.Red,
+                        style = TextStyle(fontSize = 12.sp),
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }
@@ -495,33 +627,63 @@ fun ProfileMainScreen(
                 modifier = Modifier.size(80.dp)
             )
         }
-        Button(
-            onClick = { showUpgradeBottomSheet = true },
-            modifier = Modifier
-                .align(alignment = Alignment.TopCenter)
-                .offset(x = 130.dp, y = 25.dp)
-                .clip(shape = RoundedCornerShape(64.dp))
-                .background(
-                    brush = Brush.linearGradient(
-                        colorStops = arrayOf(
-                            0f to Color(0xFFF74C54),
-                            0.75f to Color(0xFFFA8246),
-                            1f to Color(0xFFFEAC2F)
-                        ),
+        if (userState?.premium == true) {
+            Box(
+                modifier = Modifier
+                    .align(alignment = Alignment.TopCenter)
+                    .offset(x = 130.dp, y = 25.dp)
+                    .clip(shape = RoundedCornerShape(64.dp))
+                    .background(
+                        brush = Brush.linearGradient(
+                            colorStops = arrayOf(
+                                0f to Color(0xFFF74C54),
+                                0.75f to Color(0xFFFA8246),
+                                1f to Color(0xFFFEAC2F)
+                            )
+                        )
                     )
+                    .height(40.dp)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Premium",
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 0.83.em,
+                    modifier = Modifier.wrapContentHeight(align = Alignment.CenterVertically)
                 )
-                .height(40.dp)
-                .padding(horizontal = 20.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-            contentPadding = PaddingValues(0.dp),
-        ) {
-            Text(
-                text = "Nâng cấp",
-                color = Color.White,
-                lineHeight = 0.83.em,
-                fontSize = 17.sp,
-                modifier = Modifier.wrapContentHeight(align = Alignment.CenterVertically)
-            )
+            }
+        } else {
+            Button(
+                onClick = { showUpgradeBottomSheet = true },
+                modifier = Modifier
+                    .align(alignment = Alignment.TopCenter)
+                    .offset(x = 130.dp, y = 25.dp)
+                    .clip(shape = RoundedCornerShape(64.dp))
+                    .background(
+                        brush = Brush.linearGradient(
+                            colorStops = arrayOf(
+                                0f to Color(0xFFF74C54),
+                                0.75f to Color(0xFFFA8246),
+                                1f to Color(0xFFFEAC2F)
+                            )
+                        )
+                    )
+                    .height(40.dp)
+                    .padding(horizontal = 20.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text(
+                    text = "Nâng cấp",
+                    color = Color.White,
+                    lineHeight = 0.83.em,
+                    fontSize = 17.sp,
+                    modifier = Modifier.wrapContentHeight(align = Alignment.CenterVertically)
+                )
+            }
         }
 
         // Profile
@@ -596,7 +758,9 @@ fun ProfileMainScreen(
             contentPadding = PaddingValues(horizontal = 12.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().clickable { navController.navigate("accountManagement") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { navController.navigate("accountManagement") },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -790,7 +954,9 @@ fun CalendarSection(modifier: Modifier = Modifier) {
 
             // Hiển thị các ngày
             items(days) { day ->
-                val formattedDay = "$currentYear-${currentMonth.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}"
+                val formattedDay = "$currentYear-${currentMonth.toString().padStart(2, '0')}-${
+                    day.toString().padStart(2, '0')
+                }"
                 Log.e("study date", formattedDay)
                 val isStudied = formattedDay in studiedDays
                 Box(

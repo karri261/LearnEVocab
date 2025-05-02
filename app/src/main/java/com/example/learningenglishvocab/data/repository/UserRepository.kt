@@ -2,8 +2,11 @@ package com.example.learningenglishvocab.data.repository
 
 import android.util.Log
 import com.example.learningenglishvocab.data.model.PracticeRecord
+import com.example.learningenglishvocab.data.model.Transaction
 import com.example.learningenglishvocab.data.model.User
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.tasks.await
 
 class UserRepository {
@@ -78,6 +81,19 @@ class UserRepository {
             }
         } catch (e: Exception) {
             Log.e("UserRepository", "Error checking username: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun saveTransaction(transaction: Transaction): Boolean {
+        return try {
+            Firebase.firestore.collection("transactions")
+                .document()
+                .set(transaction)
+                .await()
+            true
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error saving transaction: ${e.message}", e)
             false
         }
     }
