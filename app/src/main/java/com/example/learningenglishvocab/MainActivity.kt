@@ -31,6 +31,7 @@ import com.example.learningenglishvocab.ui.bottomNav.BottomNavigationBar
 import com.example.learningenglishvocab.ui.screen.auth.UserLoginView
 import com.example.learningenglishvocab.ui.screen.auth.UserRegisterView
 import com.example.learningenglishvocab.ui.screen.auth.VerifyEmailView
+import com.example.learningenglishvocab.ui.screen.discover.DiscoverMainScreen
 import com.example.learningenglishvocab.ui.screen.home.HomeView
 import com.example.learningenglishvocab.ui.screen.library.CreateVocabScreen
 import com.example.learningenglishvocab.ui.screen.library.LibraryMainScreen
@@ -278,7 +279,10 @@ fun EApp(
             }
 
             composable("discover") {
-                HomeView(modifier = Modifier, navController, authViewModel)
+                DiscoverMainScreen(
+                    modifier = Modifier,
+                    navController = navController,
+                )
             }
 
             composable(route = "profile") {

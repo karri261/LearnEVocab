@@ -77,14 +77,14 @@ class LibraryViewModel(
                                             vocabSetId = doc.id,
                                             vocabSetName = doc["vocabSetName"] as? String ?: "",
                                             created_by = doc["created_by"] as? String ?: "",
-                                            is_public = doc["is_public"] as? Boolean ?: true,
+                                            _public = doc["is_public"] as? Boolean ?: true,
                                             created_at = doc["created_at"] as? Long ?: 0L,
                                             updated_at = doc["updated_at"] as? Long ?: 0L,
                                             terms = terms,
-                                            isPremiumContent = doc["isPremiumContent"] as? Boolean ?: false
+                                            premiumContent = doc["premiumContent"] as? Boolean ?: false
                                         )
-                                        if (vocabSet.is_public || vocabSet.created_by == userId) {
-                                            if (vocabSet.isPremiumContent && user?.premium != true) {
+                                        if (vocabSet._public || vocabSet.created_by == userId) {
+                                            if (vocabSet.premiumContent && user?.premium != true) {
                                                 null
                                             } else {
                                                 vocabSet

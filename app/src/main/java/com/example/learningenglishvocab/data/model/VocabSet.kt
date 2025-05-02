@@ -4,9 +4,9 @@ data class VocabSet(
     var vocabSetId: String = "",
     val vocabSetName: String = "",
     val created_by: String = "",
-    val is_public: Boolean = false,
+    val _public: Boolean = false,
     val created_at: Long = System.currentTimeMillis(),
     val updated_at: Long = System.currentTimeMillis(),
     val terms: List<Term> = emptyList(),
-    val isPremiumContent: Boolean = false
+    val premiumContent: Boolean = false
 )

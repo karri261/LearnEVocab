@@ -31,7 +31,7 @@ class VocabSetViewModel(
     var created_by by mutableStateOf("")
     var terms = mutableStateListOf(Term(), Term())
 
-    var isPremiumContent by mutableStateOf(false)
+    var premiumContent by mutableStateOf(false)
 
     private var _answeredTerms = mutableStateListOf<AnsweredTerm>()
     val answeredTerms: List<AnsweredTerm> get() = _answeredTerms
@@ -117,8 +117,8 @@ class VocabSetViewModel(
         repository.getVocabSetById(id) { vocabSet ->
             vocabSetId = vocabSet.vocabSetId
             vocabSetName = vocabSet.vocabSetName
-            isPublic = vocabSet.is_public
-            isPremiumContent = vocabSet.isPremiumContent
+            isPublic = vocabSet._public
+            premiumContent = vocabSet.premiumContent
             created_by = vocabSet.created_by
             terms = vocabSet.terms.toMutableStateList()
             clearLearningResults()
@@ -137,16 +137,16 @@ class VocabSetViewModel(
                         onFailure(Exception("Không tìm thấy thông tin người dùng"))
                         return@launch
                     }
-                    val finalIsPremiumContent = if (user.role == UserRole.ADMIN) isPremiumContent else false
+                    val finalIsPremiumContent = if (user.role == UserRole.ADMIN) premiumContent else false
                     val vocabSet = VocabSet(
                         vocabSetId = vocabSetId ?: "",
                         vocabSetName = vocabSetName,
-                        is_public = isPublic,
+                        _public = isPublic,
                         created_by = userId,
                         created_at = System.currentTimeMillis(),
                         updated_at = System.currentTimeMillis(),
                         terms = terms,
-                        isPremiumContent = finalIsPremiumContent
+                        premiumContent = finalIsPremiumContent
                     )
                     repository.addVocabSet(vocabSet, onSuccess, onFailure)
                 } catch (e: Exception) {
@@ -174,11 +174,11 @@ class VocabSetViewModel(
                     val vocabSet = VocabSet(
                         vocabSetId = vocabSetId ?: "",
                         vocabSetName = vocabSetName,
-                        is_public = isPublic,
+                        _public = isPublic,
                         created_by = userId,
                         terms = terms,
                         updated_at = System.currentTimeMillis(),
-                        isPremiumContent = isPremiumContent
+                        premiumContent = premiumContent
                     )
                     repository.updateVocabSet(vocabSet, onSuccess, onFailure)
                 } catch (e: Exception) {
