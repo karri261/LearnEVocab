@@ -1,5 +1,6 @@
 package com.example.learningenglishvocab.ui.screen.library
 
+import android.annotation.SuppressLint
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
@@ -62,12 +63,15 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import com.example.learningenglishvocab.R
 import com.example.learningenglishvocab.data.model.VocabSet
+import com.example.learningenglishvocab.data.repository.StudyLogRepository
 import com.example.learningenglishvocab.data.repository.UserRepository
 import com.example.learningenglishvocab.ui.screen.auth.AppTypes
 import com.example.learningenglishvocab.viewmodel.AuthViewModel
 import com.example.learningenglishvocab.viewmodel.LibraryViewModel
 import com.example.learningenglishvocab.viewmodel.VocabSetViewModel
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -303,7 +307,8 @@ fun LibraryMainScreen(
                 }
 
                 items(sets) { vocabSet ->
-                    VocabSetItem(vocabSet = vocabSet) {
+                    VocabSetItem(vocabSet = vocabSet)
+                    {
                         libraryViewModel.updateVocabSetUpdatedAt(vocabSet.vocabSetId) {
                             navController.navigate("vocabSetDetail/${vocabSet.vocabSetId}")
                         }
@@ -314,14 +319,39 @@ fun LibraryMainScreen(
     }
 }
 
+@SuppressLint("NewApi")
 @Composable
 fun VocabSetItem(vocabSet: VocabSet, onClick: () -> Unit) {
+    val authViewModel = AuthViewModel()
+    val studyLogRepository = StudyLogRepository()
+    val userRepository = UserRepository()
+    val coroutineScope = rememberCoroutineScope()
+    val userId = authViewModel.getCurrentUserId() ?: return
+
     Box(
         modifier = Modifier
             .padding(horizontal = 24.dp, vertical = 8.dp)
             .requiredWidth(360.dp)
             .requiredHeight(100.dp)
-            .clickable { onClick() }
+            .clickable {
+                coroutineScope.launch {
+                    // Lấy danh sách log của người dùng
+                    val logs = studyLogRepository.getStudyLogs(userId)
+                    val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+                    // Kiểm tra xem đã có log cho ngày hôm nay chưa
+                    val hasLogForToday = logs.any { it.date == today }
+
+                    if (!hasLogForToday) {
+                        val currentStreak = studyLogRepository.calculateStreak(userId)
+                        userRepository.updateUserStreak(userId, currentStreak)
+
+                        studyLogRepository.logStudySession(userId, vocabSet.vocabSetId)
+                    }
+
+                    onClick()
+                }
+            }
     ) {
         Box(
             modifier = Modifier

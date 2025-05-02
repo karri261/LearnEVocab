@@ -9,5 +9,6 @@ data class User(
     val avatar: String = "",
     val createdAt: Long = 0L,
     val premium: Boolean = false,
-    val role: UserRole = UserRole.USER
+    val role: UserRole = UserRole.USER,
+    val streak: Int = 0
 )

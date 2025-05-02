@@ -47,6 +47,41 @@ class UserRepository {
         }
     }
 
+    // Lưu streak của user vào Firestore
+    suspend fun updateUserStreak(userId: String, streak: Int): Boolean {
+        return try {
+            usersCollection.document(userId).update("streak", streak).await()
+            true
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error updating streak: ${e.message}")
+            false
+        }
+    }
+
+    // Lấy streak của user từ Firestore
+    suspend fun getUserStreak(userId: String): Int {
+        return try {
+            val snapshot = usersCollection.document(userId).get().await()
+            snapshot.getLong("streak")?.toInt() ?: 0
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error getting streak: ${e.message}")
+            0
+        }
+    }
+
+    suspend fun isUsernameTaken(username: String, currentUserId: String): Boolean {
+        return try {
+            val snapshot = usersCollection.whereEqualTo("username", username).get().await()
+            snapshot.documents.any { document ->
+                val userId = document.getString("userId")
+                userId != null && userId != currentUserId
+            }
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error checking username: ${e.message}")
+            false
+        }
+    }
+
     suspend fun addPracticeRecord(userId: String, record: PracticeRecord): Boolean {
         return try {
             usersCollection.document(userId)

@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -34,6 +35,12 @@ import com.example.learningenglishvocab.ui.screen.library.SetDetailScreen
 import com.example.learningenglishvocab.ui.screen.library.VocabFlashCardScreen
 import com.example.learningenglishvocab.ui.screen.library.VocabLearnResultScreen
 import com.example.learningenglishvocab.ui.screen.library.VocabLearnScreen
+import com.example.learningenglishvocab.ui.screen.profile.AccountManagementScreen
+import com.example.learningenglishvocab.ui.screen.profile.ChangePasswordScreen
+import com.example.learningenglishvocab.ui.screen.profile.ChangeUsernameScreen
+import com.example.learningenglishvocab.ui.screen.profile.PrivacyAndSupportScreen
+import com.example.learningenglishvocab.ui.screen.profile.ProfileMainScreen
+import com.example.learningenglishvocab.ui.screen.profile.YearlyOverviewScreen
 import com.example.learningenglishvocab.ui.theme.LearningEnglishVocabTheme
 import com.example.learningenglishvocab.viewmodel.AuthViewModel
 import com.example.learningenglishvocab.viewmodel.LibraryViewModel
@@ -90,24 +97,30 @@ fun EApp(
     vocabSetViewModel: VocabSetViewModel,
     libraryViewModel: LibraryViewModel
 ) {
+    Log.d("EApp", "EApp recomposed")
     val navController = rememberNavController()
-    val isLoggedIn by authViewModel.isLoggedIn.collectAsState()
+    val isLoggedIn by authViewModel.isLoggedIn.collectAsStateWithLifecycle()
     val currentBackStack by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStack?.destination?.route
+    Log.d("EApp", "isLoggedIn: $isLoggedIn, currentRoute: $currentRoute")
 
     LaunchedEffect(isLoggedIn) {
+        Log.d("Navigation", "isLoggedIn changed: $isLoggedIn, currentRoute: ${navController.currentDestination?.route}")
+        Log.d("Navigation", "Back stack before: ${navController.backQueue.joinToString { it.destination.route ?: "null" }}")
         if (isLoggedIn) {
+            Log.d("Navigation", "Navigating to Home")
             navController.navigate(BottomNavItem.Home.route) {
                 popUpTo(navController.graph.startDestinationId) { inclusive = true }
                 launchSingleTop = true
             }
-        } else if (currentRoute !in listOf("login", "register", "verifyEmail", null)) {
+        } else {
+            Log.d("Navigation", "Clearing back stack and navigating to Login")
+            // Xóa toàn bộ back stack trước khi điều hướng
+            navController.popBackStack(navController.graph.startDestinationId, inclusive = true)
             navController.navigate("login") {
-                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                popUpTo(0) { inclusive = true } // Xóa tất cả các destination
                 launchSingleTop = true
             }
-        } else {
-            Log.d("EApp", "No navigation performed - isLoggedIn: $isLoggedIn, currentRoute: $currentRoute")
         }
     }
 
@@ -139,7 +152,7 @@ fun EApp(
             modifier = Modifier.padding(innerPadding)
         ) {
             composable("login") {
-                UserLoginView(modifier = Modifier, navController)
+                UserLoginView(modifier = Modifier, navController, authViewModel)
             }
 
             composable("register") {
@@ -251,6 +264,47 @@ fun EApp(
 
             composable("discover") {
                 HomeView(modifier = Modifier, navController, authViewModel)
+            }
+
+            composable(route = "profile") {
+                ProfileMainScreen (
+                    modifier = Modifier,
+                    authViewModel = authViewModel,
+                    navController = navController,
+                )
+            }
+
+            composable(route = "yearlyOverview") {
+                YearlyOverviewScreen (
+                    authViewModel = authViewModel,
+                    navController = navController,
+                )
+            }
+
+            composable(route = "accountManagement") {
+                AccountManagementScreen (
+                    authViewModel = authViewModel,
+                    navController = navController,
+                )
+            }
+
+            composable("changeUsername") {
+                ChangeUsernameScreen(
+                    navController = navController,
+                    authViewModel = authViewModel
+                )
+            }
+            composable("changePassword") {
+                ChangePasswordScreen(
+                    navController = navController,
+                    authViewModel = authViewModel
+                )
+            }
+
+            composable(route = "privacyAndSupport") {
+                PrivacyAndSupportScreen (
+                    navController = navController,
+                )
             }
         }
     }

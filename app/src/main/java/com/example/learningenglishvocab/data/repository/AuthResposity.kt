@@ -2,14 +2,16 @@ package com.example.learningenglishvocab.data.repository
 
 import com.example.learningenglishvocab.data.model.User
 import com.example.learningenglishvocab.data.model.UserRole
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
 
 class AuthRepository(private val auth: FirebaseAuth) {
-    private val userRepository = UserRepository()
+    val userRepository = UserRepository()
 
     suspend fun loginUser(email: String, password: String): FirebaseUser? {
         return try {
@@ -41,7 +43,8 @@ class AuthRepository(private val auth: FirebaseAuth) {
                     avatar = defaultAvatar,
                     createdAt = System.currentTimeMillis(),
                     premium = false,
-                    role = UserRole.USER
+                    role = UserRole.USER,
+                    streak = 0,
                 )
 
                 db.collection("users").document(userId).set(user).await()
@@ -73,6 +76,63 @@ class AuthRepository(private val auth: FirebaseAuth) {
     suspend fun isEmailVerified(): Boolean {
         return auth.currentUser?.reload()?.await().let {
             auth.currentUser?.isEmailVerified ?: false
+        }
+    }
+
+    suspend fun updateUsername(userId: String, newUsername: String): Boolean {
+        return try {
+            val isTaken = userRepository.isUsernameTaken(newUsername, userId)
+            if (isTaken) {
+                return false
+            }
+
+            val user = userRepository.getUser(userId)
+            if (user != null) {
+                val updatedUser = user.copy(username = newUsername)
+                userRepository.updateUser(updatedUser)
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun reauthenticate(email: String, currentPassword: String): Result<Unit> {
+        return try {
+            val user = auth.currentUser ?: return Result.failure(Exception("Bạn chưa đăng nhập"))
+            val credential = EmailAuthProvider.getCredential(email, currentPassword)
+            user.reauthenticate(credential).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun changePassword(newPassword: String): Result<Unit> {
+        return try {
+            val user = auth.currentUser
+            if (user == null) {
+                return Result.failure(Exception("Bạn chưa đăng nhập"))
+            }
+            if (newPassword.length < 6) {
+                return Result.failure(Exception("Mật khẩu phải có ít nhất 6 ký tự"))
+            }
+            user.updatePassword(newPassword).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteUserAccount(userId: String): Result<Unit> {
+        return try {
+            val user = auth.currentUser ?: return Result.failure(Exception("Bạn chưa đăng nhập"))
+            user.delete().await()
+            FirebaseFirestore.getInstance().collection("users").document(userId).delete().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 }

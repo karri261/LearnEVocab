@@ -62,14 +62,14 @@ import com.example.learningenglishvocab.viewmodel.AuthViewModel
 fun UserLoginView(
     modifier: Modifier = Modifier,
     navController: NavController,
-    viewModel: AuthViewModel = viewModel()
+    authViewModel: AuthViewModel
 ) {
     var emailState by remember { mutableStateOf(TextFieldValue("")) }
     var passwordState by remember { mutableStateOf(TextFieldValue("")) }
     var isPasswordVisible by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val isLoading by viewModel.isLoading.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState()
+    val isLoading by authViewModel.isLoading.collectAsState()
+    val errorMessage by authViewModel.errorMessage.collectAsState()
 
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
@@ -276,7 +276,7 @@ fun UserLoginView(
         }
         Button(
             onClick = {
-                viewModel.login(
+                authViewModel.login(
                     email = emailState.text,
                     password = passwordState.text,
                     onSuccess = {

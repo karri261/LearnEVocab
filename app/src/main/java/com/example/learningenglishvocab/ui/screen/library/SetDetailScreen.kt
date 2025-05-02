@@ -1,7 +1,9 @@
 package com.example.learningenglishvocab.ui.screen.library
 
+import android.annotation.SuppressLint
 import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -13,6 +15,7 @@ import androidx.compose.animation.with
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,11 +83,13 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import com.example.learningenglishvocab.R
 import com.example.learningenglishvocab.data.model.Term
+import com.example.learningenglishvocab.data.repository.StudyLogRepository
 import com.example.learningenglishvocab.data.repository.UserRepository
 import com.example.learningenglishvocab.viewmodel.AuthViewModel
 import com.example.learningenglishvocab.viewmodel.VocabSetViewModel
 import kotlinx.coroutines.delay
 
+@SuppressLint("RememberReturnType")
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
@@ -105,11 +110,34 @@ fun SetDetailScreen(
     var startCountdown by remember { mutableStateOf(false) }
 
     var currentUsername by remember { mutableStateOf<String?>(null) }
-
     var action by remember { mutableStateOf<String?>(null) }
 
+    val studyLogRepository = StudyLogRepository()
+    val userId = authViewModel.getCurrentUserId() ?: return
+    var showStreakOverlay by remember { mutableStateOf(false) }
+    var previousStreak by remember { mutableStateOf(0) }
+    var currentStreak by remember { mutableStateOf(0) }
+    var displayStreak by remember { mutableStateOf(0) }
+
+    // Tính streak trước và sau khi vào màn hình
     LaunchedEffect(Unit) {
-        val userId = authViewModel.getCurrentUserId() ?: return@LaunchedEffect
+        previousStreak = userRepository.getUserStreak(userId)
+        delay(500L)
+        currentStreak = studyLogRepository.calculateStreak(userId)
+
+        if (currentStreak != previousStreak) {
+            showStreakOverlay = true
+            displayStreak = if (currentStreak < previousStreak) 0 else previousStreak
+            delay(1000L)
+            displayStreak = currentStreak
+            delay(2000L)
+            showStreakOverlay = false
+            userRepository.updateUserStreak(userId, currentStreak)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+//        val userId = authViewModel.getCurrentUserId() ?: return@LaunchedEffect
         val user = userRepository.getUser(userId)
         currentUsername = user?.username
     }
@@ -146,6 +174,7 @@ fun SetDetailScreen(
                                 navController.navigate("createVocabSet/$it")
                             }
                         }
+
                         "delete" -> {
                             vocabSetViewModel.deleteVocabSet(
                                 onSuccess = {
@@ -560,8 +589,53 @@ fun SetDetailScreen(
             }
         }
     }
-}
 
+    // Overlay hiển thị streak
+    if (showStreakOverlay) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.7f)) // Nền đen mờ
+                .zIndex(100f)
+                .clickable(
+                    onClick = { showStreakOverlay = false },
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            AnimatedVisibility(
+                visible = showStreakOverlay,
+                enter = fadeIn(animationSpec = tween(1000)),
+                exit = fadeOut(animationSpec = tween(1000))
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "\uD83D\uDD25",
+                        fontSize = 60.sp
+                    )
+                    AnimatedContent(
+                        targetState = displayStreak,
+                        transitionSpec = {
+                            (fadeIn(animationSpec = tween(500)) with
+                                    fadeOut(animationSpec = tween(500)))
+                        }
+                    ) { streak ->
+                        Text(
+                            text = streak.toString(),
+                            fontSize = 60.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFF8C00)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun TermCard(term: Term) {
