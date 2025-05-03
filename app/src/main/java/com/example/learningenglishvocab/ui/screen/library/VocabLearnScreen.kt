@@ -269,7 +269,7 @@ fun VocabLearnScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = { navController.navigate("vocabSetDetail/${vocabSetId}") }
+                    onClick = { navController.popBackStack() }
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.back),
