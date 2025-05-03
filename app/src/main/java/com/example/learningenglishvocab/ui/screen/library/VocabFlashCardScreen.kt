@@ -1,6 +1,7 @@
 package com.example.learningenglishvocab.ui.screen.library
 
 import android.annotation.SuppressLint
+import android.media.MediaPlayer
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -402,6 +403,8 @@ fun FlashcardViewer(
     val offsetY = remember { Animatable(0f) }
     val coroutineScope = rememberCoroutineScope()
 
+    val mediaPlayer = remember { MediaPlayer() }
+
     val borderColor = when (currentTerm.status) {
         TermStatus.LEARNING -> Color(0xfffdb837)
         TermStatus.KNOWN -> Color(0xff1b7a4b)
@@ -412,6 +415,21 @@ fun FlashcardViewer(
         if (!isFlipped) rotation.animateTo(180f)
         else rotation.animateTo(0f)
         isFlipped = !isFlipped
+    }
+
+    fun playPronunciation(term: String) {
+        coroutineScope.launch {
+            try {
+                // API Google Text-to-Speech
+                val url = "https://translate.google.com/translate_tts?ie=UTF-8&q=$term&tl=en&client=tw-ob"
+                mediaPlayer.reset()
+                mediaPlayer.setDataSource(url)
+                mediaPlayer.prepare()
+                mediaPlayer.start()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     Box(
@@ -487,6 +505,22 @@ fun FlashcardViewer(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(24.dp)
             )
+
+            if (rotation.value < 90f) {
+                IconButton(
+                    onClick = { playPronunciation(currentTerm.term) },
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .offset(x = (-120).dp, y = (-220).dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.speaker),
+                        contentDescription = "Play pronunciation",
+                        tint = Color.Gray,
+                        modifier = Modifier.size(30.dp)
+                    )
+                }
+            }
         }
     }
 }

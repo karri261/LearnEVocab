@@ -2,6 +2,7 @@ package com.example.learningenglishvocab.ui.screen.home
 
 import android.annotation.SuppressLint
 import android.graphics.BitmapFactory
+import android.media.MediaPlayer
 import android.util.Base64
 import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -41,6 +42,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,6 +70,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import com.example.learningenglishvocab.R
 import com.example.learningenglishvocab.data.model.DictionaryResponse
@@ -265,15 +268,21 @@ fun HomeMainScreen(
         }
 
 //        Từ điển
-        SearchBar(
-            modifier = Modifier.offset(y = 75.dp),
-            onSuggestionClick = { word ->
-                coroutineScope.launch {
-                    selectedWord = dictionaryRepository.searchWord(word)
-                    showWordBottomSheet = true
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .zIndex(100f)
+        ) {
+            SearchBar(
+                modifier = Modifier.offset(y = 75.dp),
+                onSuggestionClick = { word ->
+                    coroutineScope.launch {
+                        selectedWord = dictionaryRepository.searchWord(word)
+                        showWordBottomSheet = true
+                    }
                 }
-            }
-        )
+            )
+        }
 
         // Bottom sheet hiển thị nghĩa chi tiết
         if (showWordBottomSheet) {
@@ -292,12 +301,42 @@ fun HomeMainScreen(
                 ) {
                     // Nội dung từ
                     if (selectedWord != null) {
-                        Text(
-                            text = selectedWord!!.word,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = selectedWord!!.word,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        try {
+                                            val mediaPlayer = MediaPlayer()
+                                            val url = "https://translate.google.com/translate_tts?ie=UTF-8&q=${selectedWord!!.word}&tl=en&client=tw-ob"
+                                            mediaPlayer.setDataSource(url)
+                                            mediaPlayer.prepare()
+                                            mediaPlayer.start()
+                                            mediaPlayer.setOnCompletionListener { it.release() }
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.speaker),
+                                    contentDescription = "Play pronunciation",
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
                         selectedWord!!.meanings.forEach { meaning ->
                             Text(
                                 text = meaning.partOfSpeech,
@@ -556,37 +595,40 @@ fun SearchBar(
         )
 
         if (isFocused && suggestions.isNotEmpty()) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .offset(y = 80.dp),
-                shape = RoundedCornerShape(8.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                LazyColumn(
+            Box(modifier = Modifier.zIndex(200f)) {
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 200.dp)
+                        .offset(y = 80.dp)
+                        .zIndex(1000f),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    items(suggestions) { suggestion ->
-                        Text(
-                            text = suggestion,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.Black,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp)
-                                .clickable {
-                                    searchText = suggestion
-                                    onSuggestionClick(suggestion)
-                                    suggestions = emptyList()
-                                    isFocused = false
-                                    focusManager.clearFocus()
-                                }
-                        )
-                        Divider(color = Color(0xFFEEEEEE))
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                    ) {
+                        items(suggestions) { suggestion ->
+                            Text(
+                                text = suggestion,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.Black,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp)
+                                    .clickable {
+                                        searchText = suggestion
+                                        onSuggestionClick(suggestion)
+                                        suggestions = emptyList()
+                                        isFocused = false
+                                        focusManager.clearFocus()
+                                    }
+                            )
+                            Divider(color = Color(0xFFEEEEEE))
+                        }
                     }
                 }
             }
