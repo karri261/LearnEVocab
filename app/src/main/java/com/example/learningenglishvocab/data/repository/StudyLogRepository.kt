@@ -74,28 +74,30 @@ class StudyLogRepository {
             .distinct()
             .sortedDescending()
 
-        var streak = 0
         val today = LocalDate.now()
         val formatter = DateTimeFormatter.ISO_LOCAL_DATE
+        var streak = 0
 
-        // Kiểm tra chuỗi từ ngày gần nhất (hôm nay hoặc hôm qua)
-        var currentDate = if (sortedDates.firstOrNull() == today.format(formatter)) {
-            streak = 1 // Nếu hôm nay có học, bắt đầu chuỗi là 1
-            today.minusDays(1) // Kiểm tra từ hôm qua
-        } else {
-            LocalDate.parse(sortedDates.firstOrNull(), formatter) // Ngày gần nhất
-        }
+        // Lấy ngày gần nhất
+        val latestDate = sortedDates.firstOrNull()?.let { LocalDate.parse(it, formatter) } ?: return 0
 
-        // Tính chuỗi liên tiếp
-        for (i in 1 until sortedDates.size) {
-            val date = LocalDate.parse(sortedDates[i], formatter)
-            if (currentDate.minusDays(1) == date) {
-                streak++
-                currentDate = date
-            } else {
-                break // Nếu không liên tiếp, dừng
+        // Kiểm tra nếu ngày gần nhất là hôm nay hoặc hôm qua
+        if (latestDate == today || latestDate == today.minusDays(1)) {
+            streak = 1 // Bắt đầu chuỗi
+            var currentDate = latestDate
+
+            // Tính chuỗi liên tiếp
+            for (i in 1 until sortedDates.size) {
+                val date = LocalDate.parse(sortedDates[i], formatter)
+                if (currentDate.minusDays(1) == date) {
+                    streak++
+                    currentDate = date
+                } else {
+                    break // Chuỗi bị gián đoạn
+                }
             }
         }
+
         return streak
     }
 }
