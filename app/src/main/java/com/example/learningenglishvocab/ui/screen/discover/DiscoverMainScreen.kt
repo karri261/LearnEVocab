@@ -274,7 +274,11 @@ fun PeopleScreen(
                         Term(it["term"] ?: "", it["definition"] ?: "")
                     } ?: emptyList()
                     val isPremiumContent = doc["premiumContent"] as? Boolean ?: false
+                    val createdBy = doc["created_by"] as? String ?: ""
                     Log.d("PeopleScreen", "VocabSet ${doc.id}: premiumContent = $isPremiumContent")
+                    if (createdBy == currentUserId) {
+                        return@mapNotNull null
+                    }
                     VocabSet(
                         vocabSetId = doc.id,
                         vocabSetName = doc["vocabSetName"] as? String ?: "",
