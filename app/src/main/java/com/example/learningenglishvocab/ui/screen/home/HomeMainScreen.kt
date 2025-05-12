@@ -255,16 +255,6 @@ fun HomeMainScreen(
                     color = Color(0xFFFF8C00)
                 )
             }
-
-            Icon(
-                painter = painterResource(id = R.drawable.notification),
-                contentDescription = "Thông báo",
-                tint = Color.Black,
-                modifier = Modifier
-                    .size(23.dp)
-                    .align(Alignment.CenterEnd)
-                    .clickable {}
-            )
         }
 
 //        Từ điển

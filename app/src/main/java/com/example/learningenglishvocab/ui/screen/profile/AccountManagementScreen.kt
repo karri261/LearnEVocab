@@ -759,52 +759,6 @@ fun AccountManagementScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Phần thông báo
-        Text(
-            text = "Thông báo",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Gray
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFFF6F6F6))
-                .clip(RoundedCornerShape(8.dp))
-                .border(
-                    border = BorderStroke(1.dp, Color(0xff929295).copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(15.dp)
-                )
-                .padding(horizontal = 16.dp, vertical = 5.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFFF6F6F6)),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Nhắc nhở",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
-                    color = Color.Black
-                )
-                Switch(
-                    checked = false, // Giá trị mặc định
-                    onCheckedChange = { /* Chưa triển khai chức năng */ },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color(0xFFFF8C00),
-                        uncheckedThumbColor = Color.Gray
-                    )
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
         // Phần giới thiệu
         Text(
             text = "Giới thiệu",

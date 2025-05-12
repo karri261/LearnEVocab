@@ -209,7 +209,7 @@ fun TopicScreen(
                         premiumContent = doc["premiumContent"] as? Boolean ?: false
                     )
                 }
-                adminVocabSets = vocabSets
+                adminVocabSets = vocabSets.sortedBy { it.premiumContent }
             }
             .addOnFailureListener { exception ->
                 Log.e("TopicScreen", "Error fetching admin vocab sets", exception)
@@ -219,7 +219,7 @@ fun TopicScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 30.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (adminVocabSets.isEmpty()) {
@@ -381,7 +381,7 @@ fun PeopleScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 16.dp)
+                    .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 30.dp),
             ) {
                 items(filteredVocabSets, key = { it.vocabSetId }) { vocabSet ->
                     VocabSetItem(
