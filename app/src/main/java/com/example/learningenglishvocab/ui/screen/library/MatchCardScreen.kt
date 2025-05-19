@@ -430,7 +430,10 @@ fun MatchCardScreen(
                     ) {
                         Button(
                             onClick = {
-                                navController.navigate("vocabSetDetail/${vocabSetId}")
+                                navController.navigate("vocabSetDetail/$vocabSetId") {
+                                    popUpTo("vocabSetDetail/$vocabSetId") { inclusive = false }
+                                    launchSingleTop = true
+                                }
                             },
                             modifier = Modifier
                                 .requiredWidth(width = 150.dp)
@@ -559,7 +562,10 @@ fun MatchCardScreen(
                         }
                         Button(
                             onClick = {
-                                navController.navigate("vocabSetDetail/${vocabSetId}")
+                                navController.navigate("vocabSetDetail/$vocabSetId") {
+                                    popUpTo("vocabSetDetail/$vocabSetId") { inclusive = false }
+                                    launchSingleTop = true
+                                }
                             },
                             modifier = Modifier.requiredWidth(width = 150.dp),
                             colors = ButtonDefaults.buttonColors(

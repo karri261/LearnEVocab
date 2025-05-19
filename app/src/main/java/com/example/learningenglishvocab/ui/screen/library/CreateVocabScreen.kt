@@ -92,7 +92,12 @@ fun CreateVocabScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
-                onClick = { navController.navigate("libraryMain") }
+                onClick = {
+                    navController.navigate("vocabSetDetail/$vocabSetId") {
+                        popUpTo("vocabSetDetail/$vocabSetId") { inclusive = false }
+                        launchSingleTop = true
+                    }
+                }
             ) {
                 Icon(
                     painter = painterResource(R.drawable.multiply),

@@ -92,7 +92,10 @@ fun VocabLearnResultScreen(
                     if (unknownCount == 0) {
                         vocabSetViewModel.clearLearningResults()
                     }
-                    navController.navigate("vocabSetDetail/${vocabSetId}")
+                    navController.navigate("vocabSetDetail/$vocabSetId") {
+                        popUpTo("vocabSetDetail/$vocabSetId") { inclusive = false }
+                        launchSingleTop = true
+                    }
                 }
             ) {
                 Icon(

@@ -230,10 +230,11 @@ fun SetDetailScreen(
                 modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(onClick = {
-                    navController.navigate("libraryMain") {
-                        popUpTo(navController.graph.startDestinationId)
-                        launchSingleTop = true
-                    }
+//                    navController.navigate("libraryMain") {
+//                        popUpTo(navController.graph.startDestinationId)
+//                        launchSingleTop = true
+//                    }
+                    navController.popBackStack()
                 }) {
                     Icon(
                         painter = painterResource(R.drawable.back),
