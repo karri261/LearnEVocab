@@ -153,7 +153,7 @@ fun SetDetailScreen(
             vocabSetViewModel.loadVocabSetById(vocabSetId)
             val vocabSet = vocabSetViewModel
             val creator = userRepository.getUser(vocabSet.created_by)
-            creatorUsername = creator?.username ?: "Unknown"
+            creatorUsername = creator?.username ?: "E App"
             avatarBase64 = creator?.avatar
         }
     }
