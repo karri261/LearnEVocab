@@ -383,24 +383,6 @@ fun ProfileMainScreen(
                             .fillMaxWidth()
                             .padding(16.dp)
                     ) {
-                        // Box giảm giá -30%
-                        Box(
-                            modifier = Modifier
-                                .size(60.dp)
-                                .offset(x = 280.dp, y = (-10).dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFEF4448)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "-30%",
-                                color = Color.White,
-                                style = TextStyle(
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            )
-                        }
                         // Nội dung giá tiền
                         Column {
                             Text(

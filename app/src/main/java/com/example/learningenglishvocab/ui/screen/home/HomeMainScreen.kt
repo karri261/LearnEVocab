@@ -655,7 +655,7 @@ fun VocabSetItem(vocabSet: VocabSet, onClick: () -> Unit) {
 
     LaunchedEffect(vocabSet.created_by) {
         val user = userRepository.getUser(vocabSet.created_by)
-        creatorUsername = user?.username ?: "Unknown"
+        creatorUsername = user?.username ?: "E App"
         avatarBase64 = user?.avatar
     }
 
