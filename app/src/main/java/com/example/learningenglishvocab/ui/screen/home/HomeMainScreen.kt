@@ -151,14 +151,18 @@ fun HomeMainScreen(
             if (creators.isNotEmpty()) {
                 if (creators.size == 1) {
                     // Một người tạo: Lấy tối đa 5 VocabSet công khai, không premium
-                    val creatorVocabSets = vocabSetRepository.getPublicVocabSetsByCreator(creators.first(), userId, 5)
+                    val creatorVocabSets =
+                        vocabSetRepository.getPublicVocabSetsByCreator(creators.first(), userId, 5)
                     suggestedVocabSetsList.addAll(creatorVocabSets.filter { creatorSet ->
                         vocabSets.none { studiedSet -> studiedSet.vocabSetId == creatorSet.vocabSetId }
                     })
 
                     // Nếu ít hơn 5, bổ sung từ người khác
                     if (suggestedVocabSetsList.size < 5) {
-                        val additionalVocabSets = vocabSetRepository.getRandomPublicVocabSets(userId, (5 - suggestedVocabSetsList.size).toLong())
+                        val additionalVocabSets = vocabSetRepository.getRandomPublicVocabSets(
+                            userId,
+                            (5 - suggestedVocabSetsList.size).toLong()
+                        )
                         suggestedVocabSetsList.addAll(additionalVocabSets.filter { additionalSet ->
                             vocabSets.none { studiedSet -> studiedSet.vocabSetId == additionalSet.vocabSetId } &&
                                     suggestedVocabSetsList.none { suggestedSet -> suggestedSet.vocabSetId == additionalSet.vocabSetId }
@@ -169,7 +173,11 @@ fun HomeMainScreen(
                     val randomCreators = creators.shuffled().take(3)
                     Log.d("VocabSetSuggest", "Random Creators: $randomCreators")
                     for (creator in randomCreators) {
-                        val creatorVocabSets = vocabSetRepository.getPublicVocabSetsByCreator(creator, userId, (5 - suggestedVocabSetsList.size).toLong())
+                        val creatorVocabSets = vocabSetRepository.getPublicVocabSetsByCreator(
+                            creator,
+                            userId,
+                            (5 - suggestedVocabSetsList.size).toLong()
+                        )
                         suggestedVocabSetsList.addAll(creatorVocabSets.filter { creatorSet ->
                             vocabSets.none { studiedSet -> studiedSet.vocabSetId == creatorSet.vocabSetId }
                         })
@@ -307,7 +315,8 @@ fun HomeMainScreen(
                                     coroutineScope.launch {
                                         try {
                                             val mediaPlayer = MediaPlayer()
-                                            val url = "https://translate.google.com/translate_tts?ie=UTF-8&q=${selectedWord!!.word}&tl=en&client=tw-ob"
+                                            val url =
+                                                "https://translate.google.com/translate_tts?ie=UTF-8&q=${selectedWord!!.word}&tl=en&client=tw-ob"
                                             mediaPlayer.setDataSource(url)
                                             mediaPlayer.prepare()
                                             mediaPlayer.start()
@@ -357,82 +366,89 @@ fun HomeMainScreen(
         }
 
 //       Các học phần
-        Box(
-            modifier = Modifier
-                .align(alignment = Alignment.TopStart)
-                .offset(
-                    x = 10.dp,
-                    y = 160.dp
-                )
-                .fillMaxWidth()
-        ) {
-            Text(
-                text = "Các học phần của bạn",
-                color = Color(0xffa3a3a3),
-                lineHeight = 1.25.em,
-                style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
-                modifier = Modifier.align(Alignment.TopStart)
-            )
-            LazyRow(
+        if (studiedVocabSets.isNotEmpty()) {
+            Box(
                 modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset(y = 30.dp)
-                    .fillMaxWidth(),
-                contentPadding = PaddingValues(start = 0.dp, end = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    .align(alignment = Alignment.TopStart)
+                    .offset(
+                        x = 10.dp,
+                        y = 160.dp
+                    )
+                    .fillMaxWidth()
             ) {
-                items(studiedVocabSets.take(5)) { vocabSet ->
-                    VocabSetItem(
-                        vocabSet = vocabSet,
-                        onClick = {
-                            coroutineScope.launch {
-                                val userId = authViewModel.getCurrentUserId() ?: return@launch
-                                val logs = studyLogRepository.getStudyLogs(userId)
-                                val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-                                val hasLogForToday =
-                                    logs.any { it.date == today && it.vocabSetId == vocabSet.vocabSetId }
+                Text(
+                    text = "Các học phần của bạn",
+                    color = Color(0xffa3a3a3),
+                    lineHeight = 1.25.em,
+                    style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
+                    modifier = Modifier.align(Alignment.TopStart)
+                )
+                LazyRow(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .offset(y = 30.dp)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(start = 0.dp, end = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(studiedVocabSets.take(5)) { vocabSet ->
+                        VocabSetItem(
+                            vocabSet = vocabSet,
+                            onClick = {
+                                coroutineScope.launch {
+                                    val userId = authViewModel.getCurrentUserId() ?: return@launch
+                                    val logs = studyLogRepository.getStudyLogs(userId)
+                                    val today =
+                                        LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                                    val hasLogForToday =
+                                        logs.any { it.date == today && it.vocabSetId == vocabSet.vocabSetId }
 
-                                if (!hasLogForToday) {
-                                    val currentStreak = studyLogRepository.calculateStreak(userId)
-                                    userRepository.updateUserStreak(userId, currentStreak)
-                                    studyLogRepository.logStudySession(userId, vocabSet.vocabSetId)
-                                }
-
-                                navController.navigate("vocabSetDetail/${vocabSet.vocabSetId}")
-                            }
-                        }
-                    )
-                }
-                item {
-                    Icon(
-                        painter = painterResource(id = R.drawable.back),
-                        contentDescription = "View Library",
-                        tint = Color.Black,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .offset(y = 37.dp)
-                            .rotate(180f)
-                            .clickable {
-                                navController.navigate("libraryMain") {
-                                    popUpTo(navController.graph.startDestinationId) {
-                                        saveState = true
+                                    if (!hasLogForToday) {
+                                        val currentStreak =
+                                            studyLogRepository.calculateStreak(userId)
+                                        userRepository.updateUserStreak(userId, currentStreak)
+                                        studyLogRepository.logStudySession(
+                                            userId,
+                                            vocabSet.vocabSetId
+                                        )
                                     }
-                                    launchSingleTop = true
-                                    restoreState = true
+
+                                    navController.navigate("vocabSetDetail/${vocabSet.vocabSetId}")
                                 }
                             }
-                    )
+                        )
+                    }
+                    item {
+                        Icon(
+                            painter = painterResource(id = R.drawable.back),
+                            contentDescription = "View Library",
+                            tint = Color.Black,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .offset(y = 37.dp)
+                                .rotate(180f)
+                                .clickable {
+                                    navController.navigate("libraryMain") {
+                                        popUpTo(navController.graph.startDestinationId) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                        )
+                    }
                 }
             }
         }
 
 //        Học phần liên quan
         Box(
-            modifier = Modifier
+             modifier = Modifier
                 .align(alignment = Alignment.TopStart)
                 .offset(
                     x = 10.dp,
-                    y = 360.dp
+                    y = if (studiedVocabSets.isNotEmpty()) 360.dp else 160.dp
                 )
                 .fillMaxWidth()
         ) {
