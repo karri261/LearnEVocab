@@ -1,5 +1,7 @@
 package com.example.learningenglishvocab.ui.screen.library
 
+import android.annotation.SuppressLint
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -65,6 +67,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@SuppressLint("RestrictedApi")
 @Composable
 fun VocabLearnScreen(
     modifier: Modifier = Modifier,
@@ -206,7 +209,17 @@ fun VocabLearnScreen(
                             .width(120.dp)
                             .clickable {
                                 showLimitDialog = false
-                                navController.navigate("profile")
+                                Log.d("VocabLearnDebug", "Before pop: Back stack: ${navController.currentBackStack.value.map { it.destination.route }}")
+                                navController.popBackStack("vocabSetDetail/$vocabSetId", inclusive = false)
+                                Log.d("VocabLearnDebug", "After pop: Back stack: ${navController.currentBackStack.value.map { it.destination.route }}")
+                                navController.navigate("profile") {
+                                    launchSingleTop = true
+                                    restoreState = true
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        saveState = true
+                                    }
+                                }
+                                Log.d("VocabLearnDebug", "After navigate to profile: Back stack: ${navController.currentBackStack.value.map { it.destination.route }}")
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -226,7 +239,7 @@ fun VocabLearnScreen(
                     TextButton(
                         onClick = {
                             showLimitDialog = false
-                            navController.navigate("vocabSetDetail/$vocabSetId")
+                            navController.popBackStack()
                         },
                         modifier = Modifier
                             .height(48.dp)

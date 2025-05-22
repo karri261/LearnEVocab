@@ -761,7 +761,13 @@ fun HomeMainScreen(
                             .width(120.dp)
                             .clickable {
                                 showLimitDialog = false
-                                navController.navigate("profile")
+                                navController.navigate("profile") {
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             },
                         contentAlignment = Alignment.Center
                     ) {
