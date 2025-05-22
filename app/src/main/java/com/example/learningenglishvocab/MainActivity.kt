@@ -110,6 +110,7 @@ fun EApp(
     val currentBackStack by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStack?.destination?.route
     Log.d("EApp", "isLoggedIn: $isLoggedIn, currentRoute: $currentRoute")
+    var showImageOverlay by remember { mutableStateOf(false) }
 
     LaunchedEffect(isLoggedIn) {
         if (isLoggedIn) {
@@ -136,7 +137,7 @@ fun EApp(
                     BottomNavItem.Library.route,
                     BottomNavItem.Discover.route,
                     BottomNavItem.Profile.route
-                )
+                ) && !showImageOverlay
             ) {
                 BottomNavigationBar(currentRoute = currentRoute ?: "") { item ->
                     navController.navigate(item.route) {
@@ -180,7 +181,8 @@ fun EApp(
                 HomeMainScreen(
                     modifier = Modifier,
                     authViewModel = AuthViewModel(),
-                    navController = navController
+                    navController = navController,
+                    onShowImageOverlayChange = { showImageOverlay = it }
                 )
 
             }

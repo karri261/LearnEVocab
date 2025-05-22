@@ -93,10 +93,11 @@ fun CreateVocabScreen(
         ) {
             IconButton(
                 onClick = {
-                    navController.navigate("vocabSetDetail/$vocabSetId") {
-                        popUpTo("vocabSetDetail/$vocabSetId") { inclusive = false }
-                        launchSingleTop = true
-                    }
+//                    navController.navigate("vocabSetDetail/$vocabSetId") {
+//                        popUpTo("vocabSetDetail/$vocabSetId") { inclusive = false }
+//                        launchSingleTop = true
+//                    }
+                    navController.popBackStack()
                 }
             ) {
                 Icon(

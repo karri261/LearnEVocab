@@ -1,10 +1,15 @@
 package com.example.learningenglishvocab.ui.screen.home
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
+import androidx.compose.material.AlertDialog
 import android.graphics.BitmapFactory
 import android.media.MediaPlayer
 import android.util.Base64
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -13,12 +18,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -45,6 +53,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,21 +68,32 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import com.example.learningenglishvocab.R
 import com.example.learningenglishvocab.data.model.DictionaryResponse
+import com.example.learningenglishvocab.data.model.RecognizedWord
 import com.example.learningenglishvocab.data.model.User
 import com.example.learningenglishvocab.data.model.VocabSet
 import com.example.learningenglishvocab.data.repository.DictionaryRepository
@@ -81,6 +101,9 @@ import com.example.learningenglishvocab.data.repository.StudyLogRepository
 import com.example.learningenglishvocab.data.repository.UserRepository
 import com.example.learningenglishvocab.data.repository.VocabSetRepository
 import com.example.learningenglishvocab.viewmodel.AuthViewModel
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
@@ -92,13 +115,14 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.coroutines.resume
 
-@SuppressLint("NewApi")
+@SuppressLint("NewApi", "UnusedBoxWithConstraintsScope")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeMainScreen(
     modifier: Modifier = Modifier,
     authViewModel: AuthViewModel,
-    navController: NavController
+    navController: NavController,
+    onShowImageOverlayChange: (Boolean) -> Unit
 ) {
     val userRepository = UserRepository()
     val dictionaryRepository = DictionaryRepository()
@@ -106,6 +130,7 @@ fun HomeMainScreen(
     val vocabSetRepository = VocabSetRepository()
     val coroutineScope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
 
     var userState by remember { mutableStateOf<User?>(null) }
     var studiedVocabSets by remember { mutableStateOf<List<VocabSet>>(emptyList()) }
@@ -113,11 +138,18 @@ fun HomeMainScreen(
     var selectedWord by remember { mutableStateOf<DictionaryResponse?>(null) }
     var showWordBottomSheet by remember { mutableStateOf(false) }
 
+    var uploadedImage by remember { mutableStateOf<Bitmap?>(null) }
+    var recognizedWords by remember { mutableStateOf<List<RecognizedWord>>(emptyList()) }
+    var showImageOverlay by remember { mutableStateOf(false) }
+    var isPremium by remember { mutableStateOf(false) }
+    var showLimitDialog by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         val userId = authViewModel.getCurrentUserId() ?: return@LaunchedEffect
         userState = withContext(Dispatchers.IO) {
             userRepository.getUser(userId)
         }
+        isPremium = userState?.premium == true
 
 //      Lấy danh sách vocabset đã học và hiển thị lên
         val logs = studyLogRepository.getStudyLogs(userId)
@@ -219,6 +251,29 @@ fun HomeMainScreen(
         }
     }
 
+//  Upload ảnh và boundary
+    val pickImageLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            uri?.let {
+                coroutineScope.launch {
+                    try {
+                        val inputStream = context.contentResolver.openInputStream(it)
+                        val bitmap = BitmapFactory.decodeStream(inputStream)
+                        inputStream?.close()
+                        uploadedImage = bitmap
+                        showImageOverlay = true
+                        onShowImageOverlayChange(true)
+                        // Nhận diện văn bản
+                        recognizeTextFromImage(bitmap) { words ->
+                            recognizedWords = words
+                        }
+                    } catch (e: Exception) {
+                        Log.e("HomeMainScreen", "Error processing image: ${e.message}", e)
+                    }
+                }
+            }
+        }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -278,91 +333,15 @@ fun HomeMainScreen(
                         selectedWord = dictionaryRepository.searchWord(word)
                         showWordBottomSheet = true
                     }
-                }
-            )
-        }
-
-        // Bottom sheet hiển thị nghĩa chi tiết
-        if (showWordBottomSheet) {
-            ModalBottomSheet(
-                onDismissRequest = {
-                    showWordBottomSheet = false
-                    selectedWord = null
                 },
-                containerColor = Color.White,
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp, bottom = 40.dp, start = 16.dp, end = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Nội dung từ
-                    if (selectedWord != null) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = selectedWord!!.word,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(
-                                onClick = {
-                                    coroutineScope.launch {
-                                        try {
-                                            val mediaPlayer = MediaPlayer()
-                                            val url =
-                                                "https://translate.google.com/translate_tts?ie=UTF-8&q=${selectedWord!!.word}&tl=en&client=tw-ob"
-                                            mediaPlayer.setDataSource(url)
-                                            mediaPlayer.prepare()
-                                            mediaPlayer.start()
-                                            mediaPlayer.setOnCompletionListener { it.release() }
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.speaker),
-                                    contentDescription = "Play pronunciation",
-                                    tint = Color.Black,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
-                        selectedWord!!.meanings.forEach { meaning ->
-                            Text(
-                                text = meaning.partOfSpeech,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFF555555),
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                            meaning.definitions.forEach { definition ->
-                                Text(
-                                    text = "- ${definition.definition}",
-                                    fontSize = 14.sp,
-                                    color = Color.Black,
-                                    modifier = Modifier.padding(start = 8.dp, top = 4.dp)
-                                )
-                            }
-                        }
+                onCameraClick = {
+                    if (isPremium) {
+                        pickImageLauncher.launch("image/*")
                     } else {
-                        Text(
-                            text = "Không tìm thấy nghĩa của từ này",
-                            fontSize = 14.sp,
-                            color = Color.Red,
-                            modifier = Modifier.padding(16.dp)
-                        )
+                        showLimitDialog = true
                     }
                 }
-            }
+            )
         }
 
 //       Các học phần
@@ -444,7 +423,7 @@ fun HomeMainScreen(
 
 //        Học phần liên quan
         Box(
-             modifier = Modifier
+            modifier = Modifier
                 .align(alignment = Alignment.TopStart)
                 .offset(
                     x = 10.dp,
@@ -513,13 +492,322 @@ fun HomeMainScreen(
             }
         }
     }
+
+    //  Overlay hiển thị ảnh
+    if (showImageOverlay && uploadedImage != null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.75f))
+                .zIndex(500f)
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.multiply),
+                contentDescription = "Close",
+                tint = Color.White,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(16.dp)
+                    .size(30.dp)
+                    .zIndex(510f)
+                    .clickable {
+                        showImageOverlay = false
+                        onShowImageOverlayChange(false)
+                        uploadedImage = null
+                        recognizedWords = emptyList()
+                    }
+            )
+
+            // Ảnh và bounding box
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxSize()
+            ) {
+                val imageWidth = uploadedImage!!.width.toFloat()
+                val imageHeight = uploadedImage!!.height.toFloat()
+                val canvasWidth = constraints.maxWidth.toFloat()
+                val canvasHeight = constraints.maxHeight.toFloat()
+
+                // Tính tỷ lệ và offset bên ngoài Canvas
+                val scale = minOf(canvasWidth / imageWidth, canvasHeight / imageHeight)
+                val scaledWidth = imageWidth * scale
+                val scaledHeight = imageHeight * scale
+                val offsetX = (canvasWidth - scaledWidth) / 2
+                val offsetY = (canvasHeight - scaledHeight) / 2
+
+                Log.d("CanvasDebug", "Canvas: width=$canvasWidth, height=$canvasHeight")
+                Log.d("CanvasDebug", "Image: width=$imageWidth, height=$imageHeight")
+                Log.d("CanvasDebug", "Scaled: width=$scaledWidth, height=$scaledHeight")
+                Log.d("CanvasDebug", "Scale=$scale, OffsetX=$offsetX, OffsetY=$offsetY")
+
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {}
+                ) {
+                    drawIntoCanvas { canvas ->
+                        canvas.save()
+                        canvas.translate(offsetX, offsetY)
+                        canvas.scale(scale, scale)
+                        drawImage(
+                            image = uploadedImage!!.asImageBitmap(),
+                            topLeft = Offset(0f, 0f)
+                        )
+                        canvas.restore()
+                    }
+
+                    // Vẽ bounding box với tọa độ điều chỉnh
+                    recognizedWords.forEach { word ->
+                        val rect = word.boundingBox
+                        val left = (rect.left * scale + offsetX).toFloat().coerceAtLeast(0f)
+                        val top = (rect.top * scale + offsetY).toFloat().coerceAtLeast(0f)
+                        val right = (rect.right * scale + offsetX).toFloat()
+                            .coerceAtMost(canvasWidth)
+                        val bottom = (rect.bottom * scale + offsetY).toFloat()
+                            .coerceAtMost(canvasHeight)
+
+                        if (left < right && top < bottom) {
+                            drawRect(
+                                color = Color.Red,
+                                topLeft = Offset(left, top),
+                                size = Size(right - left, bottom - top),
+                                style = Stroke(width = 2f)
+                            )
+                        }
+                    }
+                }
+
+                // Xử lý click vào từ với tọa độ điều chỉnh
+                val density = LocalDensity.current
+                recognizedWords.forEach { word ->
+                    val rect = word.boundingBox
+                    // Tính toán tọa độ đã scale
+                    val left = rect.left * scale + offsetX
+                    val top = rect.top * scale + offsetY
+                    val right = rect.right * scale + offsetX
+                    val bottom = rect.bottom * scale + offsetY
+
+                    Log.d(
+                        "BoundingBoxAdjusted",
+                        "Word: ${word.text}, Left: $left, Top: $top, Right: $right, Bottom: $bottom"
+                    )
+
+                    with(density) {
+                        Box(
+                            modifier = Modifier
+                                .offset(
+                                    x = left.toDp(),
+                                    y = top.toDp()
+                                )
+                                .size(
+                                    width = (right - left).toDp(),
+                                    height = (bottom - top).toDp()
+                                )
+                                .zIndex(520f)
+                                .clickable {
+                                    Log.d("WordClick", "Clicked word: ${word.text}")
+                                    coroutineScope.launch {
+                                        selectedWord =
+                                            dictionaryRepository.searchWord(word.text)
+                                        showWordBottomSheet = true
+                                    }
+                                }
+                                .background(Color.Green.copy(alpha = 0.3f)) // Giữ màu xanh để debug
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // Bottom sheet hiển thị nghĩa chi tiết
+    if (showWordBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                showWordBottomSheet = false
+                selectedWord = null
+            },
+            containerColor = Color.White,
+            modifier = Modifier.zIndex(1000f),
+            windowInsets = WindowInsets(0)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = 40.dp, start = 16.dp, end = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Nội dung từ
+                if (selectedWord != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = selectedWord!!.word,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = {
+                                coroutineScope.launch {
+                                    try {
+                                        val mediaPlayer = MediaPlayer()
+                                        val url =
+                                            "https://translate.google.com/translate_tts?ie=UTF-8&q=${selectedWord!!.word}&tl=en&client=tw-ob"
+                                        mediaPlayer.setDataSource(url)
+                                        mediaPlayer.prepare()
+                                        mediaPlayer.start()
+                                        mediaPlayer.setOnCompletionListener { it.release() }
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.speaker),
+                                contentDescription = "Play pronunciation",
+                                tint = Color.Black,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                    selectedWord!!.meanings.forEach { meaning ->
+                        Text(
+                            text = meaning.partOfSpeech,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF555555),
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                        meaning.definitions.forEach { definition ->
+                            Text(
+                                text = "- ${definition.definition}",
+                                fontSize = 14.sp,
+                                color = Color.Black,
+                                modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "Không tìm thấy nghĩa của từ này",
+                        fontSize = 14.sp,
+                        color = Color.Red,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            }
+        }
+
+    }
+
+    // Thêm AlertDialog cho người dùng không Premium
+    if (showLimitDialog) {
+        AlertDialog(
+            onDismissRequest = { showLimitDialog = false },
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFFFFFFFF))
+                .padding(bottom = 16.dp),
+            title = {
+                Text(
+                    text = "Nâng cấp tài khoản",
+                    style = TextStyle(
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF343333)
+                    ),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Text(
+                    text = "Để sử dụng tính năng này, vui lòng nâng cấp lên tài khoản Premium!",
+                    style = TextStyle(
+                        fontSize = 16.sp,
+                        color = Color(0xFF343333),
+                        lineHeight = 1.5.em
+                    ),
+                    textAlign = TextAlign.Center
+                )
+            },
+            buttons = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp, bottom = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(64.dp))
+                            .background(
+                                brush = Brush.linearGradient(
+                                    colorStops = arrayOf(
+                                        0f to Color(0xFFF74C54),
+                                        0.75f to Color(0xFFFA8246),
+                                        1f to Color(0xFFFEAC2F)
+                                    )
+                                )
+                            )
+                            .height(48.dp)
+                            .width(120.dp)
+                            .clickable {
+                                showLimitDialog = false
+                                navController.navigate("profile")
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Nâng cấp",
+                            style = TextStyle(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    TextButton(
+                        onClick = { showLimitDialog = false },
+                        modifier = Modifier
+                            .height(48.dp)
+                            .width(120.dp)
+                    ) {
+                        Text(
+                            text = "OK",
+                            style = TextStyle(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF9E9595)
+                            )
+                        )
+                    }
+                }
+            },
+            properties = DialogProperties(
+                dismissOnClickOutside = true,
+                dismissOnBackPress = true
+            )
+        )
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SearchBar(
     modifier: Modifier = Modifier,
-    onSuggestionClick: (String) -> Unit
+    onSuggestionClick: (String) -> Unit,
+    onCameraClick: () -> Unit
 ) {
     var searchText by remember { mutableStateOf("") }
     var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -596,6 +884,15 @@ fun SearchBar(
                         }
                         innerTextField()
                     }
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Icon(
+                        painter = painterResource(id = R.drawable.camera),
+                        contentDescription = "Camera",
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable { onCameraClick() },
+                        tint = Color.Black
+                    )
                 }
             }
         )
@@ -764,4 +1061,33 @@ fun VocabSetItem(vocabSet: VocabSet, onClick: () -> Unit) {
             )
         }
     }
+}
+
+// Hàm nhận diện văn bản sử dụng ML Kit
+fun recognizeTextFromImage(bitmap: Bitmap, onResult: (List<RecognizedWord>) -> Unit) {
+    val image = InputImage.fromBitmap(bitmap, 0)
+    val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    recognizer.process(image)
+        .addOnSuccessListener { visionText ->
+            val words = visionText.textBlocks.flatMap { block ->
+                block.lines.flatMap { line ->
+                    line.elements.mapNotNull { element ->
+                        val boundingBox = element.boundingBox
+                        if (boundingBox != null) {
+                            RecognizedWord(
+                                text = element.text,
+                                boundingBox = boundingBox
+                            )
+                        } else {
+                            null
+                        }
+                    }
+                }
+            }
+            onResult(words)
+        }
+        .addOnFailureListener { e ->
+            Log.e("TextRecognition", "Error: $e")
+            onResult(emptyList())
+        }
 }
