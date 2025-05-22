@@ -61,6 +61,9 @@ import com.example.learningenglishvocab.R
 import com.example.learningenglishvocab.data.model.Term
 import com.example.learningenglishvocab.data.model.TermStatus
 import com.example.learningenglishvocab.viewmodel.VocabSetViewModel
+import com.github.kittinunf.fuel.httpGet
+import com.github.kittinunf.fuel.json.responseJson
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -404,6 +407,21 @@ fun FlashcardViewer(
     val coroutineScope = rememberCoroutineScope()
 
     val mediaPlayer = remember { MediaPlayer() }
+    var phonetic by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(currentTerm.term) {
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                val url = "https://api.dictionaryapi.dev/api/v2/entries/en/${currentTerm.term}"
+                val (_, _, result) = url.httpGet().responseJson()
+                val jsonArray = result.get().array()
+                val json = jsonArray.getJSONObject(0) // Lấy entry đầu tiên
+                phonetic = json.optString("phonetic", null) // Lấy phonetic
+            } catch (e: Exception) {
+                phonetic = null // Xử lý lỗi
+            }
+        }
+    }
 
     val borderColor = when (currentTerm.status) {
         TermStatus.LEARNING -> Color(0xfffdb837)
@@ -499,13 +517,34 @@ fun FlashcardViewer(
                 .background(Color(0xfff7f7f7)),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = if (rotation.value < 90f) currentTerm.term else currentTerm.definition,
-                fontSize = 20.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(24.dp)
-            )
-
+            if (rotation.value < 90f) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    Text(
+                        text = currentTerm.term,
+                        fontSize = 20.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    if (phonetic != null) {
+                        Text(
+                            text = phonetic!!,
+                            fontSize = 16.sp, // Nhỏ hơn term
+                            fontWeight = FontWeight.Light, // Độ đậm nhẹ hơn
+                            textAlign = TextAlign.Center,
+                            color = Color.Gray // Màu nhạt
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = currentTerm.definition,
+                    fontSize = 20.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(24.dp)
+                )
+            }
             if (rotation.value < 90f) {
                 IconButton(
                     onClick = { playPronunciation(currentTerm.term) },

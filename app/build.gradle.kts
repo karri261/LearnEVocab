@@ -75,4 +75,5 @@ dependencies {
     implementation("com.stripe:financial-connections:21.9.0")
     implementation("com.github.kittinunf.fuel:fuel:2.3.1")
     implementation("com.github.kittinunf.fuel:fuel-json:2.3.1")
+    implementation("com.google.mlkit:text-recognition:16.0.0")
 }
